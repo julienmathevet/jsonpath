@@ -141,7 +141,13 @@ func normalize(path string) (string, error) {
 	var b bool
 	for !l.isAtEnd() {
 		if _, b = l.accept('\''); b { // This is a string type surround by a quote. A hash lookup
-			value := l.skipTo('\'')
+			value := l.skipToRun(`\'`)
+			_, bb := l.acceptRun(`\'`)
+			for bb {
+				value += `\'`
+				value += l.skipToRun(`\'`)
+				_, bb = l.acceptRun(`\'`)
+			}
 			l.ignore('\'')
 			result += `['` + value + `']`
 		}
@@ -157,11 +163,11 @@ func normalize(path string) (string, error) {
 			result += `['` + value + `']`
 			value = ""
 		}
-		if _, b := l.acceptRun(".."); b {
+		if _, b := l.acceptRun(".."); b { // This is a recurse token
 			result += `[..]`
 		}
 		l.ignore('.')
-		if a, accepted := l.accept('['); accepted {
+		if a, accepted := l.accept('['); accepted { //
 			brackets := 1
 			result += a
 			for brackets > 0 {

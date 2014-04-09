@@ -137,8 +137,9 @@ func TestNormalizePath(t *testing.T) {
 		`$.book.0day`:                         `$['book']['0day']`,
 		`$.book.10day4Nov2014`:                `$['book']['10day4Nov2014']`,
 		`$.book.10day.4Nov.'2014'`:            `$['book']['10day']['4Nov']['2014']`,
-		`$..`:  `$[..]`,
-		`$..*`: `$[..][*]`,
+		`$..`:       `$[..]`,
+		`$..*`:      `$[..][*]`,
+		`$.'foo\'s`: `$['foo\'s']`,
 	}
 	for k, v := range fix {
 		hlperTestNormalizePath(t, k, v)
