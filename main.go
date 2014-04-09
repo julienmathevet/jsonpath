@@ -98,15 +98,15 @@ func (l *lex) ignore(s rune) {
 func (l *lex) isAtEnd() bool {
 	return l.pos >= len(l.path)
 }
-func (l *lex) acceptRun(s string) (string, bool) {
+func (l *lex) acceptRun(s string) bool {
 	start, pos := l.start, l.pos
 	for _, r := range s {
 		if _, b := l.accept(r); !b {
 			l.start, l.pos = start, pos // reset back
-			return "", false
+			return false
 		}
 	}
-	return s, true
+	return true
 }
 func (l *lex) debug() string {
 	return fmt.Sprintf("path:%q start: %d pos: %d", l.path[l.start:], l.start, l.pos)
@@ -142,11 +142,9 @@ func normalize(path string) (string, error) {
 	for !l.isAtEnd() {
 		if _, b = l.accept('\''); b { // This is a string type surround by a quote. A hash lookup
 			value := l.skipToRun(`\'`)
-			_, bb := l.acceptRun(`\'`)
-			for bb {
+			for l.acceptRun(`\'`) {
 				value += `\'`
 				value += l.skipToRun(`\'`)
-				_, bb = l.acceptRun(`\'`)
 			}
 			l.ignore('\'')
 			result += `['` + value + `']`
@@ -163,11 +161,11 @@ func normalize(path string) (string, error) {
 			result += `['` + value + `']`
 			value = ""
 		}
-		if _, b := l.acceptRun(".."); b { // This is a recurse token
+		if l.acceptRun("..") { // This is a recurse token
 			result += `[..]`
 		}
 		l.ignore('.')
-		if a, accepted := l.accept('['); accepted { //
+		if a, accepted := l.accept('['); accepted { // This is normalized stuff, can be strings, or filters, or maps, or numbers
 			brackets := 1
 			result += a
 			for brackets > 0 {
@@ -186,7 +184,7 @@ func normalize(path string) (string, error) {
 
 			}
 		}
-		if _, b := l.accept('*'); b {
+		if _, b := l.accept('*'); b { // This is a splat token
 			result += "[*]"
 		}
 	}
