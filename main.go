@@ -5,18 +5,12 @@ import (
 	"strings"
 )
 
-type objKeyType int8
 type Object interface{}
-
-const (
-	MapType objKeyType = iota
-	ArrayType
-)
 
 type PathDesc struct {
 	MapKey   string
 	ArrayKey string
-	Type     objKeyType
+	Type     tokeType
 }
 
 type pathError string
@@ -32,61 +26,55 @@ func ParsePath(path string) (Path, error) {
 }
 
 func normalize(path string) (string, error) {
+
 	path = strings.TrimSpace(path)
 	l := &lex{path: path}
 
-	if _, b := l.accept('$'); !b {
+	if !l.ignore('$') {
 		return "", pathError("Not a JSON Path specifier")
 	}
 	result := "$"
-	value := ""
-	var b bool
 	for !l.isAtEnd() {
-		if _, b = l.accept('\''); b { // This is a string type surround by a quote. A hash lookup
-			value := l.skipToRun(`\'`)
+		if l.ignore('\'') { // This is a string type surround by a quote. A hash lookup
+			l.skipToRun(`\'`)
 			for l.acceptRun(`\'`) {
-				value += `\'`
-				value += l.skipToRun(`\'`)
+				l.skipToRun(`\'`)
 			}
+			result += `['` + l.collopse() + `']`
 			l.ignore('\'')
-			result += `['` + value + `']`
 		}
-		if value, b = l.acceptAnyRun("0123456789"); b { // This is a number, usually an array lookup
-			_, b := l.acceptAny(".]")
-			if b || l.isAtEnd() {
-				result += `[` + value + `]`
-				value = ""
+		if l.acceptAnyRun("0123456789") { // This is a number, usually an array lookup
+			if l.acceptAny(".]") || l.isAtEnd() {
+				result += `[` + l.collopse() + `]`
 			}
 		}
-		value += l.skipToRun(".[") // This is a string that is not quoted.
-		if value != "" {
-			result += `['` + value + `']`
-			value = ""
+		l.skipToRun(".[") // This is a string that is not quoted.
+		if l.tokeLen() > 0 {
+			result += `['` + l.collopse() + `']`
 		}
 		if l.acceptRun("..") { // This is a recurse token
+			l.collopse()
 			result += `[..]`
 		}
 		l.ignore('.')
-		if a, accepted := l.accept('['); accepted { // This is normalized stuff, can be strings, or filters, or maps, or numbers
+		if l.accept('[') { // This is normalized stuff, can be strings, or filters, or maps, or numbers
 			brackets := 1
-			result += a
-			for brackets > 0 {
-				result += l.skipToRun("[]")
-				if aa, b := l.accept('['); b {
-					result += aa
+			for brackets > 0 && !l.isAtEnd() {
+				l.skipToRun("[]")
+				if l.accept('[') {
 					brackets++
 				}
-				if aa, b := l.accept(']'); b {
-					result += aa
+				if l.accept(']') {
 					brackets--
 				}
 			}
-			if brackets < 0 {
-				return "", pathError("Not a good JSON Path specifier, unbalanced ']' ")
-
+			if brackets != 0 {
+				return "", pathError("Not a good JSON Path specifier, unbalanced ']' or '[' ")
 			}
+
+			result += l.collopse()
 		}
-		if _, b := l.accept('*'); b { // This is a splat token
+		if l.ignore('*') { // This is a splat token
 			result += "[*]"
 		}
 	}

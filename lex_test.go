@@ -19,6 +19,10 @@ func TestNormalizePath(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected normalize to return error.")
 	}
+	_, err = normalize(`$['store[[0]']`)
+	if err == nil {
+		t.Errorf("Expected normalize to return error.")
+	}
 	fix := map[string]string{
 		`  $  `:                               `$`,
 		`$`:                                   `$`,
