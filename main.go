@@ -25,6 +25,28 @@ func ParsePath(path string) (Path, error) {
 	return Path{}, nil
 }
 
+func stringOrNumber(l *lex) string {
+	result := ""
+	if l.ignore('\'') { // This is a string type surround by a quote. A hash lookup
+		l.skipToRun(`\'`)
+		for l.acceptRun(`\'`) {
+			l.skipToRun(`\'`)
+		}
+		result += `['` + l.collapse() + `']`
+		l.ignore('\'')
+	}
+	if l.acceptAnyRun("0123456789") { // This is a number, usually an array lookup
+		if l.acceptAny(".]") || l.isAtEnd() {
+			result += `[` + l.collapse() + `]`
+		}
+	}
+	l.skipToRun(".[") // This is a string that is not quoted.
+	if l.tokeLen() > 0 {
+		result += `['` + l.collapse() + `']`
+	}
+	return result
+}
+
 func normalize(path string) (string, error) {
 
 	path = strings.TrimSpace(path)
@@ -35,25 +57,9 @@ func normalize(path string) (string, error) {
 	}
 	result := "$"
 	for !l.isAtEnd() {
-		if l.ignore('\'') { // This is a string type surround by a quote. A hash lookup
-			l.skipToRun(`\'`)
-			for l.acceptRun(`\'`) {
-				l.skipToRun(`\'`)
-			}
-			result += `['` + l.collopse() + `']`
-			l.ignore('\'')
-		}
-		if l.acceptAnyRun("0123456789") { // This is a number, usually an array lookup
-			if l.acceptAny(".]") || l.isAtEnd() {
-				result += `[` + l.collopse() + `]`
-			}
-		}
-		l.skipToRun(".[") // This is a string that is not quoted.
-		if l.tokeLen() > 0 {
-			result += `['` + l.collopse() + `']`
-		}
+		result += stringOrNumber(l)
 		if l.acceptRun("..") { // This is a recurse token
-			l.collopse()
+			l.collapse()
 			result += `[..]`
 		}
 		l.ignore('.')
@@ -72,7 +78,7 @@ func normalize(path string) (string, error) {
 				return "", pathError("Not a good JSON Path specifier, unbalanced ']' or '[' ")
 			}
 
-			result += l.collopse()
+			result += l.collapse()
 		}
 		if l.ignore('*') { // This is a splat token
 			result += "[*]"

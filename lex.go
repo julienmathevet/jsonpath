@@ -143,7 +143,7 @@ func (l *lex) accept(s rune) bool {
 }
 func (l *lex) ignore(s rune) bool {
 	if l.accept(s) {
-		l.collopse()
+		l.collapse()
 		return true
 	}
 	return false
@@ -179,7 +179,7 @@ func (l *lex) acceptAnyRun(s string) (b bool) {
 	l.back()
 	return
 }
-func (l *lex) collopse() string {
+func (l *lex) collapse() string {
 	s, e := l.start, l.pos
 	l.start = l.pos
 	return l.path[s:e]
