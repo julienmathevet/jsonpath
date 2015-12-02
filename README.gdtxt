@@ -1,0 +1,48 @@
+«front-matter
+| Author : Gautam Dey <gautam.dey77@gmail.com>
+| Date   : 2 December 2015
+| Title  : Go Port of Stefan Goessner's JSONPath – XPath for JSON
+;
+JSON Path is a tool for extracting data out of JSON documents.
+»
+
+§ What is JSONPath?
+
+JSONPath is XPath for JSON documents. To find out more checkout [[ Stefan Goessner's JSONPath site ][ http://goessner.net/articles/JsonPath/ ]].
+
+This tool does not aim to fully support the specification. Just the parts I need
+to implement the JSONGrep tool.
+
+§§ JSONPath expressions
+
+JSONPath expressions always start with a root element which is represented by the [* $ *].
+
+JSONPath expressions can be represented using the [** dot **]–notation 
+
+«code;
+$.store.book[0].title
+»
+
+or the [** bracket **]–notation
+
+«code;
+$['store']['book'][0]['title']
+»
+
+for input pathes. Internal or output pathes will always be converted to the more general
+[** bracket **]-notation.
+
+«comment;
+The spec, also, support * for member names and array indices, as well as '..' and
+and array slice syntax of [start:end:step] but for now; we are not going to support
+them. If I end up adding support we will have to modify this.
+»
+
+«table;
+§› JSONPATH   §› Description 
+|›     $      |› The root object/element    
+|› . or \[\]  |› child operator
+|›     *      |› wildcard. All Object/elements regardless of there name.
+»
+
+
