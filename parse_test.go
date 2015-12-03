@@ -1,6 +1,11 @@
 package jsonpath
 
-import "testing"
+import (
+	"encoding/json"
+	"fmt"
+	"reflect"
+	"testing"
+)
 
 func TestNormalize(t *testing.T) {
 	var ev string
@@ -18,6 +23,12 @@ func TestNormalize(t *testing.T) {
 		{t: "$.store.*", e: `$["store"][*]`},
 		{t: "$.store.book[?(@.length()-1)].title", e: `$["store"]["book"][?(@.length()-1)]["title"]`},
 		{t: "$.store.book[1:10:2].title", e: `$["store"]["book"][1:10:2]["title"]`},
+		{t: `$.store["category.sub"]`, e: `$["store"]["category.sub"]`},
+		{t: `$.store..["category.sub"]`, e: `$["store"][..]["category.sub"]`},
+		{t: `$.store..`, e: `$["store"][..]`},
+		{t: `$.store.`, e: `$["store"]`},
+		{t: `.store.`, e: `$["store"]`, DontTestImplicate: true},
+		{t: `..store.`, e: `$[..]["store"]`, DontTestImplicate: true},
 	}
 	for i, test := range testcases {
 		// First let's run the normal test.
@@ -40,7 +51,10 @@ func TestNormalize(t *testing.T) {
 func isSameArraySelectionNode(n *ArraySelection, m node) bool {
 	switch mv := m.(type) {
 	case *ArraySelection:
-		return mv.Key == n.Key
+		if mv.Key != n.Key {
+			return false
+		}
+		return isSameNode(n.NextNode, mv.NextNode)
 	default:
 		return false
 	}
@@ -48,31 +62,34 @@ func isSameArraySelectionNode(n *ArraySelection, m node) bool {
 func isSameMapSelectionNode(n *MapSelection, m node) bool {
 	switch mv := m.(type) {
 	case *MapSelection:
-		return mv.Key == n.Key
+		if mv.Key != n.Key {
+			return false
+		}
+		return isSameNode(n.NextNode, mv.NextNode)
 	default:
 		return false
 	}
 }
 func isSameRootNodeNode(n *RootNode, m node) bool {
-	switch m.(type) {
+	switch mv := m.(type) {
 	case *RootNode:
-		return true
+		return isSameNode(n.NextNode, mv.NextNode)
 	default:
 		return false
 	}
 }
 func isSameWildcardSelectionNode(n *WildCardSelection, m node) bool {
-	switch m.(type) {
+	switch mv := m.(type) {
 	case *WildCardSelection:
-		return true
+		return isSameNode(n.NextNode, mv.NextNode)
 	default:
 		return false
 	}
 }
 func isSameDescentSelectionNode(n *DescentSelection, m node) bool {
-	switch m.(type) {
+	switch mv := m.(type) {
 	case *DescentSelection:
-		return true
+		return isSameNode(n.NextNode, mv.NextNode)
 	default:
 		return false
 	}
@@ -118,6 +135,144 @@ func TestGetNode(t *testing.T) {
 		b := isSameNode(n, test.n)
 		if err != test.err || s != test.s || !b {
 			t.Errorf(`[%03d] getNode("%v") = %T, "%v","%v"; want %T, "%v", "%v"`, i, test.t, n, s, err, test.n, test.s, test.err)
+		}
+	}
+}
+
+func collapseNodes(n ...node) node {
+	rt := &RootNode{}
+	for i := range n {
+		rt.SetNext(n[i])
+	}
+	return rt
+}
+
+func TestParse(t *testing.T) {
+	var books = make(map[string]interface{})
+	err := json.Unmarshal(
+		[]byte(`{ "store" :
+  { "book" :
+    [ { "category"     : "reference"
+      , "category.sub" : "quotes"
+      , "author"       : "Nigel Rees"
+      , "title"        : "Saying of the Century"
+      , "price"        : 8.95
+      }
+    , { "category" : "fiction"
+      , "author"   : "Evelyn Waugh"
+      , "title"    : "Sword of Honor"
+      , "price"    : 12.99
+      }
+    , { "category" : "fiction"
+      , "author"   : "Herman Melville"
+      , "title"    : "Moby Dick"
+      , "isbn"     : "0-553-21311-3"
+      , "price"    : 8.99
+      }
+    , { "category" : "fiction"
+      , "author"   : "J. R. R. Tolkien"
+      , "title"    : "The Lord of the Rings"
+      , "isbn"     : "0-395-19395-8"
+      , "price"    : 22.99
+      }
+    ]
+  , "bicycle" :
+    { "color" : "red"
+    , "price" : 19.95
+    }
+  }
+}`),
+		&books,
+	)
+	if err != nil {
+		t.Fatal("Test Cast Parse error: ", err)
+		return
+	}
+
+	testcases := []struct {
+		t        string
+		expected interface{}
+		perr     error
+		err      error
+	}{
+		{
+			t:        "$..author",
+			expected: []interface{}{"Nigel Rees", "Evelyn Waugh", "Herman Melville", "J. R. R. Tolkien"},
+		},
+		{
+			t: "store.bicycle",
+			expected: map[string]interface{}{
+				"color": "red",
+				"price": 19.95,
+			},
+		},
+		{
+			t: "store.bicycle.*",
+			expected: []interface{}{
+				"red",
+				19.95,
+			},
+		},
+		{
+			t: "store.book[0]",
+			expected: map[string]interface{}{
+				"category":     "reference",
+				"category.sub": "quotes",
+				"author":       "Nigel Rees",
+				"title":        "Saying of the Century",
+				"price":        8.95,
+			},
+		},
+		{
+			t: "store.book[0]*",
+			expected: []interface{}{
+				"Nigel Rees",
+				"reference",
+				"quotes",
+				8.95,
+				"Saying of the Century",
+			},
+		},
+		{
+			t: "store.book..isbn",
+			expected: []interface{}{
+				"0-553-21311-3",
+				"0-395-19395-8",
+			},
+		},
+		{
+			t: "store..isbn",
+			expected: []interface{}{
+				"0-553-21311-3",
+				"0-395-19395-8",
+			},
+		},
+		{
+			t: "store..[\"category.sub\"]",
+			expected: []interface{}{
+				"quotes",
+			},
+		},
+		{
+			t:        "..author..",
+			expected: []interface{}{"Nigel Rees", "Evelyn Waugh", "Herman Melville", "J. R. R. Tolkien"},
+		},
+	}
+	for i, test := range testcases {
+		a, err := Parse(test.t)
+		if err != test.perr {
+			t.Errorf(`[%03d] Parse("%v") = %T, %v ; expected err to be %v`, i, test.t, a, err, test.perr)
+			continue
+		}
+		ev, err := a.Apply(books)
+		if err != test.err {
+			t.Errorf(`[%03d] a.Apply(books) = %T, %v ; expected err to be %v`, i, ev, err, test.err)
+			continue
+		}
+		evs := fmt.Sprintf("“%v”", ev)
+		tevs := fmt.Sprintf("“%v”", test.expected)
+		if !reflect.DeepEqual(ev, test.expected) {
+			t.Errorf(`[%03d] a.Apply(books) = %v, nil ; expected to be %v`, i, evs, tevs)
 		}
 	}
 }

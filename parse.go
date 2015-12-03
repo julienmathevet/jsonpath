@@ -3,6 +3,8 @@ package jsonpath
 import (
 	"errors"
 	"io"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -21,6 +23,8 @@ var (
 	ArrayTypeError    = errors.New("Expected Type to be an Array.")
 	SyntaxError       = errors.New("Bad Syntax.")
 	NotSupportedError = errors.New("Not Supported")
+	NotFound          = errors.New("Not Found")
+	IndexOutOfBounds  = errors.New("Out of Bounds")
 )
 
 func applyNext(nn node, v interface{}) (interface{}, error) {
@@ -30,23 +34,31 @@ func applyNext(nn node, v interface{}) (interface{}, error) {
 	return nn.Apply(v)
 }
 
-// A root type just has the NextNode which is it's self. If node is nil, we
-// Just return the interface, there is no need to filter.
+// RootNode is always the top node. It does not really do anything other then
+// delegate to the next node, and acts as a starting point.
+// Every other node type embeds this node To get the NextNode functions.
 type RootNode struct {
+	// The next Node in the sequence.
 	NextNode node
 }
 
+// Set the next node.
 func (r *RootNode) SetNext(n node) {
-	if r.NextNode == nil {
-		r.NextNode = n
-	}
-	r.NextNode.SetNext(n)
+	r.NextNode = n
 }
 
+// Apply is the main workhourse, each node type will apply it's filtering rules
+// to the provided value, returning the filtered result.
+// It is expected that the node will call's it's Next Nodes Apply method as
+// need by the rules of the Node.
 func (r *RootNode) Apply(v interface{}) (interface{}, error) {
 	return applyNext(r.NextNode, v)
 }
 
+// MapSelection is a the basic filter for a Map type key. It will look at the
+// in coming v and try to turn it into a map[string]interface{} value. If it
+// successeeds it will then apply the NextNode to that interface value, or it
+// will return the value if it has no NextNode.
 type MapSelection struct {
 	Key string
 	RootNode
@@ -57,9 +69,14 @@ func (m *MapSelection) Apply(v interface{}) (interface{}, error) {
 	if !ok {
 		return v, MapTypeError
 	}
-	return applyNext(m.NextNode, mv[m.Key])
+	nv, ok := mv[m.Key]
+	if !ok {
+		return nil, NotFound
+	}
+	return applyNext(m.NextNode, nv)
 }
 
+// ArrySelection is a the basic filter for a Array type key. It is like MapSelection but for Arrays.
 type ArraySelection struct {
 	Key int
 	RootNode
@@ -70,9 +87,16 @@ func (a *ArraySelection) Apply(v interface{}) (interface{}, error) {
 	if !ok {
 		return v, ArrayTypeError
 	}
+	// Check to see if the value is in bounds for the array.
+	if a.Key < 0 || a.Key >= len(arv) {
+		return nil, IndexOutOfBounds
+
+	}
 	return applyNext(a.NextNode, arv[a.Key])
 }
 
+// WildCardSelection is a filter that grabs all the values and returns an Array of them
+// It applies it's NextNode on each value.
 type WildCardSelection struct {
 	RootNode
 }
@@ -81,8 +105,13 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 	switch tv := v.(type) {
 	case map[string]interface{}:
 		var ret []interface{}
-		for _, val := range tv {
-			rval, err := applyNext(w.NextNode, val)
+		var keys []string
+		for key, _ := range tv {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			rval, err := applyNext(w.NextNode, tv[key])
 			// Don't add anything that causes an error or returns nil.
 			if err == nil || rval != nil {
 				ret = append(ret, rval)
@@ -105,28 +134,60 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 	}
 }
 
+// DescentSelection is a filter that recursively descends applying it's NextNode and
+// corrlating the results.
 type DescentSelection struct {
 	RootNode
+}
+
+func isNil(i interface{}) bool {
+	vi := reflect.ValueOf(i)
+	if !vi.IsValid() {
+		return true
+	}
+	switch vi.Kind() {
+	case reflect.Chan, reflect.Interface, reflect.Func, reflect.Slice, reflect.Map, reflect.Ptr:
+		return vi.IsNil()
+	default:
+		return false
+	}
+}
+func flattenAppend(src []interface{}, values ...interface{}) []interface{} {
+	for _, value := range values {
+		av, ok := value.([]interface{})
+		if ok {
+			if len(av) > 0 {
+				src = flattenAppend(src, av...)
+			}
+		} else {
+			src = append(src, value)
+		}
+	}
+	return src
 }
 
 func (d *DescentSelection) Apply(v interface{}) (interface{}, error) {
 	var ret []interface{}
 	rval, err := applyNext(d.NextNode, v)
-	if err != nil {
-		return nil, err
-	}
-	if rval != nil {
-		ret = append(ret, rval)
+
+	// Ignore errors here.
+	if err == nil && !isNil(rval) {
+		ret = flattenAppend(ret, rval)
 	}
 	switch tv := v.(type) {
 	default:
 		return ret, nil
 	case map[string]interface{}:
-		for _, val := range tv {
-			rval, err := d.Apply(val)
+		var keys []string
+		for key, _ := range tv {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			rval, err := d.Apply(tv[key])
 			// Don't add anything that causes an error or returns nil.
-			if err == nil || rval != nil {
-				ret = append(ret, rval)
+			if err == nil && !isNil(rval) {
+				ret = flattenAppend(ret, rval)
 			}
 		}
 		return ret, nil
@@ -134,8 +195,8 @@ func (d *DescentSelection) Apply(v interface{}) (interface{}, error) {
 		for _, val := range tv {
 			rval, err := d.Apply(val)
 			// Don't add anything that causes an error or returns nil.
-			if err == nil || rval != nil {
-				ret = append(ret, rval)
+			if err == nil && !isNil(rval) {
+				ret = flattenAppend(ret, rval)
 			}
 		}
 		return ret, nil
@@ -184,6 +245,9 @@ func normalize(s string) string {
 				s = s[1:]
 			}
 		}
+		if len(s) == 0 {
+			break
+		}
 		if s[0] == '*' {
 			r += "[*]"
 			if len(s) == 1 {
@@ -193,6 +257,9 @@ func normalize(s string) string {
 		}
 
 		n := minNotNeg1(strings.Index(s, "["), strings.Index(s, "."))
+		if n == 0 {
+			continue
+		}
 		if n != -1 {
 			r += `["` + s[:n] + `"]`
 			s = s[n:]
@@ -234,6 +301,8 @@ func getNode(s string) (node, string, error) {
 	}
 }
 
+// Parse parses the JSONPath and returns a object that can be applied to
+// a structure to filter it down.
 func Parse(s string) (Applicator, error) {
 	var nn node
 	var err error
@@ -241,12 +310,15 @@ func Parse(s string) (Applicator, error) {
 	rt := RootNode{}
 	// Remove the starting '$'
 	s = s[1:]
+	var c node
+	c = &rt
 	for len(s) > 0 {
 		nn, s, err = getNode(s)
 		if err != nil {
 			return nil, err
 		}
-		rt.SetNext(nn)
+		c.SetNext(nn)
+		c = nn
 	}
 	return &rt, nil
 }
