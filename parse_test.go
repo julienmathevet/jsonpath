@@ -267,6 +267,37 @@ func TestParse(t *testing.T) {
 			t:        "..author..",
 			expected: []interface{}{"Nigel Rees", "Evelyn Waugh", "Herman Melville", "J. R. R. Tolkien"},
 		},
+		{
+			t: "store.book[?(@.price < 10)]",
+			expected: []interface{}{ map[string]interface{}{
+				"category":     "reference",
+				"category.sub": "quotes",
+				"author":       "Nigel Rees",
+				"title":        "Saying of the Century",
+				"price":        8.95,
+			}, map[string]interface{}{
+				"category" : "fiction",
+				"author"   : "Herman Melville",
+				"title"    : "Moby Dick",
+				"isbn"     : "0-553-21311-3",
+				"price"    : 8.99,
+			},
+
+			},
+		},
+		{
+			t: `store.book[?(@.category == reference)]`,
+			expected: []interface{}{ map[string]interface{}{
+				"category":     "reference",
+				"category.sub": "quotes",
+				"author":       "Nigel Rees",
+				"title":        "Saying of the Century",
+				"price":        8.95,
+			},
+
+			},
+		},
+
 	}
 	for i, test := range testcases {
 		a, err := Parse(test.t)
