@@ -86,6 +86,14 @@ func isSameWildcardSelectionNode(n *WildCardSelection, m node) bool {
 		return false
 	}
 }
+func isSameWildcardFilterSelectionNode(n *WildCardFilterSelection, m node) bool {
+	switch mv := m.(type) {
+	case *WildCardFilterSelection:
+		return isSameNode(n.NextNode, mv.NextNode)
+	default:
+		return false
+	}
+}
 func isSameDescentSelectionNode(n *DescentSelection, m node) bool {
 	switch mv := m.(type) {
 	case *DescentSelection:
@@ -110,6 +118,8 @@ func isSameNode(n, m node) bool {
 		return isSameDescentSelectionNode(nv, m)
 	case *WildCardSelection:
 		return isSameWildcardSelectionNode(nv, m)
+	case *WildCardFilterSelection:
+		return isSameWildcardFilterSelectionNode(nv, m)
 	default:
 		return false
 	}
@@ -126,8 +136,8 @@ func TestGetNode(t *testing.T) {
 		{t: `[10]`, n: &ArraySelection{Key: 10}},
 		{t: `[*]`, n: &WildCardSelection{}},
 		{t: `[..]`, n: &DescentSelection{}},
-		{t: `[?(@.lenght())]`, n: nil, err: NotSupportedError},
-		{t: `[(@.foo)]`, n: nil, err: NotSupportedError},
+		{t: `[?(@.lenght())]`, n: &WildCardFilterSelection{Key: "@.lenght()"}},
+		{t: `[(@.foo)]`, n: &WildCardFilterSelection{Key: "@.foo"}},
 		{t: `[0:10:2]`, n: nil, err: SyntaxError},
 	}
 	for i, test := range testcases {
