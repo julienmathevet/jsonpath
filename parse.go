@@ -7,6 +7,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"fmt"
+	"regexp"
+	"go/types"
+	"go/token"
 )
 
 type Applicator interface {
@@ -133,6 +137,52 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 		return applyNext(w.NextNode, v)
 	}
 }
+
+type WildCardFilterSelection struct {
+	RootNode
+	Key string
+}
+
+func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
+	arv, ok := v.([]interface{})
+	if !ok {
+		return v, ArrayTypeError
+	}
+	var ret []interface{}
+	for _, val := range arv {
+		_, ok := val.(map[string]interface{})
+		if !ok {
+			return v, MapTypeError
+		}
+
+		re, err := regexp.Compile(`[\S]+`)
+		if err != nil {
+			return v, err
+		}
+		ops := re.FindAllString(w.Key, -1)
+		if len(ops) != 3 {
+			return v, fmt.Errorf("filter should contains 3 parts separated with blank")
+		}
+		wa, _ := Parse(strings.Replace(ops[0], "@", "$", 1))
+		subv, _ := wa.Apply(val)
+		if subv == nil {
+			continue
+		}
+		isOk, _ := cmp_any(subv, ops[2], ops[1])
+		//fmt.Printf("Key %s, subv %s, isOk %t \n", w.Key, subv, isOk)
+		if !isOk {
+			continue
+		}
+		rval, err := applyNext(w.NextNode, val)
+
+		// Don't add anything that causes an error or returns nil.
+		if err == nil || rval != nil {
+			ret = append(ret, rval)
+		}
+	}
+	return ret, nil
+}
+
 
 // DescentSelection is a filter that recursively descends applying it's NextNode and
 // corrlating the results.
@@ -290,8 +340,10 @@ func getNode(s string) (node, string, error) {
 		return &WildCardSelection{}, rs, nil
 	case "[.":
 		return &DescentSelection{}, rs, nil
-	case "[?", "[(":
-		return nil, rs, NotSupportedError
+	case "[?":
+		return &WildCardFilterSelection{Key: s[3 : n-1]}, rs, nil
+	case "[(":
+		return &WildCardFilterSelection{Key: s[2 : n-1]}, rs, nil
 	default: // Assume it's a array index otherwise.
 		i, err := strconv.Atoi(s[1:n])
 		if err != nil {
@@ -321,4 +373,42 @@ func Parse(s string) (Applicator, error) {
 		c = nn
 	}
 	return &rt, nil
+}
+
+
+func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
+	switch op {
+	case "<", "<=", "==", ">=", ">", "!=":
+	default:
+		return false, fmt.Errorf("op should only be <, <=, ==, !=, >= and >")
+	}
+	//fmt.Println("cmp_any: ", obj1, obj2)
+	var sobj1 string
+	switch obj1.(type) {
+	case string:
+		sobj1 = fmt.Sprintf("\"%v\"", obj1)
+	default:
+		sobj1 = fmt.Sprintf("%v", obj1)
+	}
+	var sobj2 string
+	switch obj1.(type) {
+	case string:
+		sobj2 = fmt.Sprintf("\"%v\"", obj2)
+	default:
+		sobj2 = fmt.Sprintf("%v", obj2)
+	}
+
+	exp := fmt.Sprintf("%v %s %v", sobj1, op, sobj2)
+	fset := token.NewFileSet()
+	res, err := types.Eval(fset, nil, 0, exp)
+	if err != nil {
+		return false, err
+	}
+	if res.IsValue() == false || (res.Value.String() != "false" && res.Value.String() != "true") {
+		return false, fmt.Errorf("result should only be true or false")
+	}
+	if res.Value.String() == "true" {
+		return true, nil
+	}
+	return false, nil
 }
