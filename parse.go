@@ -118,7 +118,7 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 			rval, err := applyNext(w.NextNode, tv[key])
 			// Don't add anything that causes an error or returns nil.
 			if err == nil || rval != nil {
-				ret = append(ret, rval)
+				ret = flattenAppend(ret, rval)
 			}
 		}
 		return ret, nil
@@ -128,7 +128,7 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 			rval, err := applyNext(w.NextNode, val)
 			// Don't add anything that causes an error or returns nil.
 			if err == nil || rval != nil {
-				ret = append(ret, rval)
+				ret = flattenAppend(ret, rval)
 			}
 		}
 		return ret, nil
@@ -160,19 +160,19 @@ func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
 			return v, err
 		}
 		ops := re.FindAllString(w.Key, -1)
-		if len(ops) != 3 {
-			return v, fmt.Errorf("filter should contains 3 parts separated with blank")
-		}
 		wa, _ := Parse(strings.Replace(ops[0], "@", "$", 1))
 		subv, _ := wa.Apply(val)
 		if subv == nil {
 			continue
 		}
-		isOk, _ := cmp_any(subv, ops[2], ops[1])
-		//fmt.Printf("Key %s, subv %s, isOk %t \n", w.Key, subv, isOk)
-		if !isOk {
-			continue
+
+		if len(ops) == 3 {
+			isOk, _ := cmp_any(subv, ops[2], ops[1])
+			if !isOk {
+				continue
+			}
 		}
+
 		rval, err := applyNext(w.NextNode, val)
 
 		// Don't add anything that causes an error or returns nil.
@@ -340,10 +340,8 @@ func getNode(s string) (node, string, error) {
 		return &WildCardSelection{}, rs, nil
 	case "[.":
 		return &DescentSelection{}, rs, nil
-	case "[?":
+	case "[?", "[(":
 		return &WildCardFilterSelection{Key: s[3 : n-1]}, rs, nil
-	case "[(":
-		return &WildCardFilterSelection{Key: s[2 : n-1]}, rs, nil
 	default: // Assume it's a array index otherwise.
 		i, err := strconv.Atoi(s[1:n])
 		if err != nil {
@@ -382,7 +380,6 @@ func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
 	default:
 		return false, fmt.Errorf("op should only be <, <=, ==, !=, >= and >")
 	}
-	//fmt.Println("cmp_any: ", obj1, obj2)
 	var sobj1 string
 	switch obj1.(type) {
 	case string:
