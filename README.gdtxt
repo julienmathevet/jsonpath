@@ -1,48 +1,103 @@
-«front-matter
-| Author : Gautam Dey <gautam.dey77@gmail.com>
-| Date   : 2 December 2015
-| Title  : Go Port of Stefan Goessner's JSONPath – XPath for JSON
-;
-JSON Path is a tool for extracting data out of JSON documents.
-»
+JsonPath
+----------------
 
-§ What is JSONPath?
-
-JSONPath is XPath for JSON documents. To find out more checkout [[ Stefan Goessner's JSONPath site ][ http://goessner.net/articles/JsonPath/ ]].
-
-This tool does not aim to fully support the specification. Just the parts I need
-to implement the JSONGrep tool.
-
-§§ JSONPath expressions
-
-JSONPath expressions always start with a root element which is represented by the [* $ *].
-
-JSONPath expressions can be represented using the [** dot **]–notation 
-
-«code;
-$.store.book[0].title
-»
-
-or the [** bracket **]–notation
-
-«code;
-$['store']['book'][0]['title']
-»
-
-for input pathes. Internal or output pathes will always be converted to the more general
-[** bracket **]-notation.
-
-«comment;
-The spec, also, support * for member names and array indices, as well as '..' and
-and array slice syntax of [start:end:step] but for now; we are not going to support
-them. If I end up adding support we will have to modify this.
-»
-
-«table;
-§› JSONPATH   §› Description 
-|›     $      |› The root object/element    
-|› . or \[\]  |› child operator
-|›     *      |› wildcard. All Object/elements regardless of there name.
-»
+A golang implementation of JsonPath syntax.
+follow the majority rules in http://goessner.net/articles/JsonPath/
+but also with some minor differences.
 
 
+**Golang Version Required**: 1.5+
+
+Get Started
+------------
+
+```bash
+go get github.com/easyrasta/jsonpath
+```
+
+example code:
+
+```go
+import (
+    "github.com/easyrasta/jsonpath"
+    "encoding/json"
+)
+
+var json_data interface{}
+json.Unmarshal([]byte(data), &json_data)
+res, err := jsonpath.JsonPathLookup(json_data, "$.expensive")
+```
+
+Operators
+--------
+referenced from github.com/jayway/JsonPath
+
+| Operator | Supported | Description |
+| ---- | :---: | ---------- |
+| $ 					  | Y | The root element to query. This starts all path expressions. |
+| @ 				      | Y | The current node being processed by a filter predicate. |
+| * 					  | Y | Wildcard. Available anywhere a name or numeric are required. |
+| .. 					  | X | Deep scan. Available anywhere a name is required. |
+| .<name> 				  | Y | Dot-notated child |
+| ['<name>' (, '<name>')] | X | Bracket-notated child or children |
+| [<number> (, <number>)] | Y | Array index or indexes |
+| [start:end] 			  | Y | Array slice operator |
+| [?(<expression>)] 	  | Y | Filter expression. Expression must evaluate to a boolean value. |
+
+Examples
+--------
+given these example data.
+
+```javascript
+{
+    "store": {
+        "book": [
+            {
+                "category": "reference",
+                "author": "Nigel Rees",
+                "title": "Sayings of the Century",
+                "price": 8.95
+            },
+            {
+                "category": "fiction",
+                "author": "Evelyn Waugh",
+                "title": "Sword of Honour",
+                "price": 12.99
+            },
+            {
+                "category": "fiction",
+                "author": "Herman Melville",
+                "title": "Moby Dick",
+                "isbn": "0-553-21311-3",
+                "price": 8.99
+            },
+            {
+                "category": "fiction",
+                "author": "J. R. R. Tolkien",
+                "title": "The Lord of the Rings",
+                "isbn": "0-395-19395-8",
+                "price": 22.99
+            }
+        ],
+        "bicycle": {
+            "color": "red",
+            "price": 19.95
+        }
+    },
+    "expensive": 10
+}
+```
+example json path syntax.
+----
+
+| jsonpath | result|
+| :--------- | :-------|
+| $.expensive 			  | 10|
+| $.store.book[0].price   | 8.95|
+| $.store.book[-1].isbn   | "0-395-19395-8"|
+| $.store.book[0,1].price | [8.95, 12.99]   |
+| $.store.book[0:2].price | [8.95, 12.99, 8.99]|
+| $.store.book[?(@.isbn)].price|  [8.99, 22.99] |
+| $.store.book[?(@.price > 10)].title | ["Sword of Honour", "The Lord of the Rings"]|
+| $.store.book[?(@.price < $.expensive)].price | [8.95, 8.99] |
+| $.store.book[:].price | [8.9.5, 12.99, 8.9.9, 22.99] |
