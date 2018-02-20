@@ -2,15 +2,15 @@ package jsonpath
 
 import (
 	"errors"
+	"fmt"
+	"go/token"
+	"go/types"
 	"io"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"fmt"
-	"regexp"
-	"go/types"
-	"go/token"
 )
 
 type Applicator interface {
@@ -138,6 +138,33 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 	}
 }
 
+type WildCardKeySelection struct {
+	RootNode
+}
+
+func (w *WildCardKeySelection) Apply(v interface{}) (interface{}, error) {
+	switch tv := v.(type) {
+	case map[string]interface{}:
+		var ret []interface{}
+		var keys []string
+		for key, _ := range tv {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			rval, err := applyNext(w.NextNode, key)
+			// Don't add anything that causes an error or returns nil.
+			if err == nil || rval != nil {
+				ret = flattenAppend(ret, rval)
+			}
+		}
+		return ret, nil
+
+	default:
+		return applyNext(w.NextNode, v)
+	}
+}
+
 type WildCardFilterSelection struct {
 	RootNode
 	Key string
@@ -182,7 +209,6 @@ func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
 	}
 	return ret, nil
 }
-
 
 // DescentSelection is a filter that recursively descends applying it's NextNode and
 // corrlating the results.
@@ -305,6 +331,13 @@ func normalize(s string) string {
 			}
 			s = s[1:]
 		}
+		if s[0] == '@' {
+			r += "[@]"
+			if len(s) == 1 {
+				break
+			}
+			s = s[1:]
+		}
 
 		n := minNotNeg1(strings.Index(s, "["), strings.Index(s, "."))
 		if n == 0 {
@@ -338,6 +371,8 @@ func getNode(s string) (node, string, error) {
 		return &MapSelection{Key: s[2 : n-1]}, rs, nil
 	case "[*":
 		return &WildCardSelection{}, rs, nil
+	case "[@":
+		return &WildCardKeySelection{}, rs, nil
 	case "[.":
 		return &DescentSelection{}, rs, nil
 	case "[?", "[(":
@@ -372,7 +407,6 @@ func Parse(s string) (Applicator, error) {
 	}
 	return &rt, nil
 }
-
 
 func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
 	switch op {
