@@ -171,43 +171,57 @@ type WildCardFilterSelection struct {
 }
 
 func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
-	arv, ok := v.([]interface{})
-	if !ok {
-		return v, ArrayTypeError
-	}
 	var ret []interface{}
-	for _, val := range arv {
-		_, ok := val.(map[string]interface{})
-		if !ok {
-			return v, MapTypeError
-		}
 
-		re, err := regexp.Compile(`[\S]+`)
-		if err != nil {
-			return v, err
-		}
-		ops := re.FindAllString(w.Key, -1)
-		wa, _ := Parse(strings.Replace(ops[0], "@", "$", 1))
-		subv, _ := wa.Apply(val)
-		if subv == nil {
-			continue
-		}
-
-		if len(ops) == 3 {
-			isOk, _ := cmp_any(subv, ops[2], ops[1])
-			if !isOk {
-				continue
-			}
-		}
-
-		rval, err := applyNext(w.NextNode, val)
-
-		// Don't add anything that causes an error or returns nil.
+	switch arv := v.(type) {
+	case map[string]interface{}:
+		rval, err := w.filter(arv)
 		if err == nil || rval != nil {
 			ret = append(ret, rval)
 		}
+	case []interface{}:
+		for _, val := range arv {
+			rval, err := w.filter(val)
+			// Don't add anything that causes an error or returns nil.
+			if err == nil || rval != nil {
+				ret = append(ret, rval)
+			}
+		}
+
+	default:
+
+		return v, ArrayTypeError
 	}
 	return ret, nil
+}
+
+func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
+	_, ok := val.(map[string]interface{})
+	if !ok {
+		return val, MapTypeError
+	}
+
+	re, err := regexp.Compile(`[\S]+`)
+	if err != nil {
+		return val, err
+	}
+	ops := re.FindAllString(w.Key, -1)
+	wa, _ := Parse(strings.Replace(ops[0], "@", "$", 1))
+	subv, _ := wa.Apply(val)
+	if subv == nil {
+		return nil, nil
+	}
+
+	if len(ops) == 3 {
+		isOk, _ := cmp_any(subv, ops[2], ops[1])
+		if !isOk {
+			return nil, nil
+		}
+	}
+
+	rval, err := applyNext(w.NextNode, val)
+
+	return rval, err
 }
 
 // DescentSelection is a filter that recursively descends applying it's NextNode and
