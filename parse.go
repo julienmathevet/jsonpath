@@ -176,14 +176,14 @@ func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
 	switch arv := v.(type) {
 	case map[string]interface{}:
 		rval, err := w.filter(arv)
-		if err == nil || rval != nil {
+		if err == nil && rval != nil {
 			ret = append(ret, rval)
 		}
 	case []interface{}:
 		for _, val := range arv {
 			rval, err := w.filter(val)
 			// Don't add anything that causes an error or returns nil.
-			if err == nil || rval != nil {
+			if err == nil && rval != nil {
 				ret = append(ret, rval)
 			}
 		}
