@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -243,11 +244,11 @@ func TestParse(t *testing.T) {
 		{
 			t: "store.book[0]*",
 			expected: []interface{}{
-				"Nigel Rees",
 				"reference",
 				"quotes",
-				8.95,
+				"Nigel Rees",
 				"Saying of the Century",
+				8.95,
 			},
 		},
 		{
@@ -304,6 +305,7 @@ func TestParse(t *testing.T) {
 		},
 	}
 	for i, test := range testcases {
+		fmt.Printf("Test %v path %s\n", i, test.t)
 		a, err := Parse(test.t)
 		if err != test.perr {
 			t.Errorf(`[%03d] Parse("%v") = %T, %v ; expected err to be %v`, i, test.t, a, err, test.perr)
@@ -314,10 +316,96 @@ func TestParse(t *testing.T) {
 			t.Errorf(`[%03d] %v a.Apply(books) = %T, %v ; expected err to be %v`, i, test.t, ev, err, test.err)
 			continue
 		}
-		evs := fmt.Sprintf("“%v”", ev)
-		tevs := fmt.Sprintf("“%v”", test.expected)
+		evs := fmt.Sprintf("“%#v”", ev)
+		tevs := fmt.Sprintf("“%#v”", test.expected)
+
+		if val, ok := ev.([]string); ok {
+			sort.Strings(val)
+			expected_val, _ := test.expected.([]string)
+			sort.Strings(expected_val)
+			if !reflect.DeepEqual(val, expected_val) {
+				t.Errorf(`[%03d] a.ApplySort(books) = %v, nil ; expected to be %v`, i, evs, tevs)
+			}
+		}
+		//sort.Strings(test.expected)
+
 		if !reflect.DeepEqual(ev, test.expected) {
 			t.Errorf(`[%03d] a.Apply(books) = %v, nil ; expected to be %v`, i, evs, tevs)
+		}
+	}
+}
+
+func BenchmarkParseWildCardFilterSelection(t *testing.B) {
+
+	var books = make(map[string]interface{})
+	err := json.Unmarshal(
+		[]byte(`{ "store" :
+  { "book" :
+    [ { "category"     : "reference"
+      , "category.sub" : "quotes"
+      , "author"       : "Nigel Rees"
+      , "title"        : "Saying of the Century"
+      , "price"        : 8.95
+      }
+    , { "category" : "fiction"
+      , "author"   : "Evelyn Waugh"
+      , "title"    : "Sword of Honor"
+      , "price"    : 12.99
+      }
+    , { "category" : "fiction"
+      , "author"   : "Herman Melville"
+      , "title"    : "Moby Dick"
+      , "isbn"     : "0-553-21311-3"
+      , "price"    : 8.99
+      }
+    , { "category" : "fiction"
+      , "author"   : "J. R. R. Tolkien"
+      , "title"    : "The Lord of the Rings"
+      , "isbn"     : "0-395-19395-8"
+      , "price"    : 22.99
+      }
+    ]
+  , "bicycle" :
+    { "color" : "red"
+    , "price" : 19.95
+    }
+  }
+}`),
+		&books,
+	)
+	if err != nil {
+		t.Fatal("Test Cast Parse error: ", err)
+		return
+	}
+	test := struct {
+		t        string
+		expected interface{}
+		perr     error
+		err      error
+	}{
+		t: `store.book[?(@.category == reference)]`,
+		expected: []interface{}{map[string]interface{}{
+			"category":     "reference",
+			"category.sub": "quotes",
+			"author":       "Nigel Rees",
+			"title":        "Saying of the Century",
+			"price":        8.95,
+		}},
+	}
+	for n := 0; n < t.N; n++ {
+
+		a, err := Parse(test.t)
+		if err != test.perr {
+			t.Errorf(`Parse("%v") = %T, %v ; expected err to be %v`, test.t, a, err, test.perr)
+		}
+		ev, err := a.Apply(books)
+		if err != test.err {
+			t.Errorf(`%v a.Apply(books) = %T, %v ; expected err to be %v`, test.t, ev, err, test.err)
+		}
+		evs := fmt.Sprintf("“%#v”", ev)
+		tevs := fmt.Sprintf("“%#v”", test.expected)
+		if !reflect.DeepEqual(ev, test.expected) {
+			t.Errorf(`a.Apply(books) = %v, nil ; expected to be %v`, evs, tevs)
 		}
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"io"
 	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -109,12 +108,12 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 	switch tv := v.(type) {
 	case map[string]interface{}:
 		var ret []interface{}
-		var keys []string
+		//var keys []string
+		//for key, _ := range tv {
+		//	keys = append(keys, key)
+		//}
+		//sort.Strings(keys)
 		for key, _ := range tv {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
 			rval, err := applyNext(w.NextNode, tv[key])
 			// Don't add anything that causes an error or returns nil.
 			if err == nil || rval != nil {
@@ -146,12 +145,12 @@ func (w *WildCardKeySelection) Apply(v interface{}) (interface{}, error) {
 	switch tv := v.(type) {
 	case map[string]interface{}:
 		var ret []interface{}
-		var keys []string
+		//var keys []string
+		//for key, _ := range tv {
+		//	keys = append(keys, key)
+		//}
+		//sort.Strings(keys)
 		for key, _ := range tv {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
 			rval, err := applyNext(w.NextNode, key)
 			// Don't add anything that causes an error or returns nil.
 			if err == nil || rval != nil {
@@ -201,11 +200,7 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		return val, MapTypeError
 	}
 
-	re, err := regexp.Compile(`[\S]+`)
-	if err != nil {
-		return val, err
-	}
-	ops := re.FindAllString(w.Key, -1)
+	ops := filterExpressiongRegex.FindAllString(w.Key, -1)
 	wa, _ := Parse(strings.Replace(ops[0], "@", "$", 1))
 	subv, _ := wa.Apply(val)
 	if subv == nil {
@@ -268,12 +263,12 @@ func (d *DescentSelection) Apply(v interface{}) (interface{}, error) {
 	default:
 		return ret, nil
 	case map[string]interface{}:
-		var keys []string
+		//var keys []string
+		//for key, _ := range tv {
+		//	keys = append(keys, key)
+		//}
+		//sort.Strings(keys)
 		for key, _ := range tv {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
 			rval, err := d.Apply(tv[key])
 			// Don't add anything that causes an error or returns nil.
 			if err == nil && !isNil(rval) {
@@ -456,4 +451,10 @@ func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+var filterExpressiongRegex *regexp.Regexp
+
+func init() {
+	filterExpressiongRegex, _ = regexp.Compile(`[\S]+`)
 }
