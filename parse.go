@@ -201,19 +201,22 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		return val, MapTypeError
 	}
 
-	re, err := regexp.Compile(`[\S]+`)
+	//re, err := regexp.Compile(`[\S]+`)
+	re, err := regexp.Compile(`([@$.\w]+) ([<=>!]{1,2}) ([']?[\w\d\s]+[']?)`)
 	if err != nil {
 		return val, err
 	}
-	ops := re.FindAllString(w.Key, -1)
-	wa, _ := Parse(strings.Replace(ops[0], "@", "$", 1))
+	//ops := re.FindAllString(w.Key, -1)
+	match := re.FindAllStringSubmatch(w.Key, -1)
+
+	wa, _ := Parse(strings.Replace(match[0][1], "@", "$", 1))
 	subv, _ := wa.Apply(val)
 	if subv == nil {
 		return nil, nil
 	}
 
-	if len(ops) == 3 {
-		isOk, _ := cmp_any(subv, ops[2], ops[1])
+	if len(match[0]) == 4 {
+		isOk, _ := cmp_any(subv, match[0][3], match[0][2])
 		if !isOk {
 			return nil, nil
 		}
@@ -431,14 +434,16 @@ func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
 	var sobj1 string
 	switch obj1.(type) {
 	case string:
-		sobj1 = fmt.Sprintf("\"%v\"", obj1)
+		sobj1 = strings.ReplaceAll(obj1.(string), "'", "")
+		sobj1 = fmt.Sprintf("\"%v\"", sobj1)
 	default:
 		sobj1 = fmt.Sprintf("%v", obj1)
 	}
 	var sobj2 string
 	switch obj1.(type) {
 	case string:
-		sobj2 = fmt.Sprintf("\"%v\"", obj2)
+		sobj2 = strings.ReplaceAll(obj2.(string), "'", "")
+		sobj2 = fmt.Sprintf("\"%v\"", sobj2)
 	default:
 		sobj2 = fmt.Sprintf("%v", obj2)
 	}

@@ -302,6 +302,17 @@ func TestParse(t *testing.T) {
 			},
 			},
 		},
+		{
+			t: `store.book[?(@.author == 'Nigel Rees')]`,
+			expected: []interface{}{map[string]interface{}{
+				"category":     "reference",
+				"category.sub": "quotes",
+				"author":       "Nigel Rees",
+				"title":        "Saying of the Century",
+				"price":        8.95,
+			},
+			},
+		},
 	}
 	for i, test := range testcases {
 		a, err := Parse(test.t)

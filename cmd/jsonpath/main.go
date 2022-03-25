@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/easyrasta/jsonpath"
+	"github.com/julienmathevet/jsonpath"
 )
 
 func applyFilter(filter jsonpath.Applicator, data []byte) (interface{}, error) {
