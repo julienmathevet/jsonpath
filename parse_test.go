@@ -7,6 +7,42 @@ import (
 	"testing"
 )
 
+func TestGetConditionsFromKeySimple(t *testing.T) {
+	w := WildCardFilterSelection{Key: "@.metadata.project_name != 'DEV-QA-WEB-BROWSER'"}
+	conditions, err := w.GetConditionsFromKey()
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
+	if len(conditions) != 1 {
+		t.Errorf("getConditionsFromKey() = %v; want 1", len(conditions))
+	}
+	expected := `@.metadata.project_name != 'DEV-QA-WEB-BROWSER'`
+	// verify expected matches another string
+	if conditions[0] != expected {
+		t.Errorf("getConditionsFromKey() = %v; want %v", conditions[0], expected)
+	}
+}
+
+func TestGetConditionsFromKeyOrCondition(t *testing.T) {
+	w := WildCardFilterSelection{Key: "@.metadata.project_name != 'DEV-QA-WEB-BROWSER' || @.metadata.project_name == 'DEV-QA-WEB-BROWSER2'"}
+	conditions, err := w.GetConditionsFromKey()
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
+	if len(conditions) != 2 {
+		t.Errorf("getConditionsFromKey() = %v; want 1", len(conditions))
+	}
+	expected1 := `@.metadata.project_name != 'DEV-QA-WEB-BROWSER'`
+	expected2 := `@.metadata.project_name == 'DEV-QA-WEB-BROWSER2'`
+	// verify expected matches another string
+	if conditions[0] != expected1 {
+		t.Errorf("getConditionsFromKey() = %v; want %v", conditions[0], expected1)
+	}
+	if conditions[1] != expected2 {
+		t.Errorf("getConditionsFromKey() = %v; want %v", conditions[1], expected2)
+	}
+}
+
 func TestNormalize(t *testing.T) {
 	var ev string
 	testcases := []struct {

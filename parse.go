@@ -195,35 +195,61 @@ func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
 	return ret, nil
 }
 
+func (w *WildCardFilterSelection) GetConditionsFromKey() ([]string, error) {
+	if w.Key == "" {
+		return nil, SyntaxError
+	}
+	conditions := []string{}
+	re1 := regexp.MustCompile(`(\s+\|\|\s+)`)
+	// split by || condition
+	orConditions := re1.Split(w.Key, -1)
+	for _, orCondition := range orConditions {
+		// if the orCondition contains an && condition and the terms of the end condition are between parentheses
+		// append to conditions
+		conditions = append(conditions, orCondition)
+	}
+	return conditions, nil
+}
+
 func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 	_, ok := val.(map[string]interface{})
 	if !ok {
 		return val, MapTypeError
 	}
 
-	//re, err := regexp.Compile(`[\S]+`)
-	re, err := regexp.Compile(`([@$.\w]+) ([<=>!]{1,2}) ([']?[\w\d\s]+[']?)`)
+	conditions, err := w.GetConditionsFromKey()
 	if err != nil {
-		return val, err
+		return nil, err
 	}
-	//ops := re.FindAllString(w.Key, -1)
-	match := re.FindAllStringSubmatch(w.Key, -1)
+	shouldKeep := false
+	for _, condition := range conditions {
+		//re, err := regexp.Compile(`[\S]+`)
+		re, err := regexp.Compile(`([@$.\w]+) ([<=>!]{1,2}) ([']?[\w\W\d\s]+[']?)`)
+		if err != nil {
+			return val, err
+		}
+		//ops := re.FindAllString(w.Key, -1)
+		match := re.FindAllStringSubmatch(condition, -1)
 
-	wa, _ := Parse(strings.Replace(match[0][1], "@", "$", 1))
-	subv, _ := wa.Apply(val)
-	if subv == nil {
-		return nil, nil
-	}
+		wa, _ := Parse(strings.Replace(match[0][1], "@", "$", 1))
+		subv, _ := wa.Apply(val)
+		if subv == nil {
+			continue
+		}
 
-	if len(match[0]) == 4 {
-		isOk, _ := cmp_any(subv, match[0][3], match[0][2])
-		if !isOk {
-			return nil, nil
+		if len(match[0]) == 4 {
+			isOk, _ := cmp_any(subv, match[0][3], match[0][2])
+			if !isOk {
+				continue
+			} else {
+				shouldKeep = true
+			}
 		}
 	}
-
+	if !shouldKeep {
+		return nil, nil
+	}
 	rval, err := applyNext(w.NextNode, val)
-
 	return rval, err
 }
 
