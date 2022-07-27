@@ -231,6 +231,10 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		//ops := re.FindAllString(w.Key, -1)
 		match := re.FindAllStringSubmatch(condition, -1)
 
+		if len(match) == 0 {
+			return val, SyntaxError
+		}
+
 		wa, _ := Parse(strings.Replace(match[0][1], "@", "$", 1))
 		subv, _ := wa.Apply(val)
 		if subv == nil {
