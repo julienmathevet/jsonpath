@@ -224,7 +224,7 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 	shouldKeep := false
 	for _, condition := range conditions {
 		//re, err := regexp.Compile(`[\S]+`)
-		re, err := regexp.Compile(`([@$.\w]+) ([<=>!]{1,2}) ([']?[\w\W\d\s]+[']?)`)
+		re, err := regexp.Compile(`([@$.\w]+) ([<=>!~]{1,2}) ([']?[\w\W\d\s]+[']?)`)
 		if err != nil {
 			return val, err
 		}
@@ -238,7 +238,16 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		}
 
 		if len(match[0]) == 4 {
-			isOk, _ := cmp_any(subv, match[0][3], match[0][2])
+			op := match[0][2]
+			if op == "=~" || op == "!~" {
+				isOk, _ := cmp_wildcard(subv, match[0][3], op)
+				if !isOk {
+					continue
+				} else {
+					shouldKeep = true
+				}
+			}
+			isOk, _ := cmp_any(subv, match[0][3], op)
 			if !isOk {
 				continue
 			} else {
@@ -449,6 +458,36 @@ func Parse(s string) (Applicator, error) {
 		c = nn
 	}
 	return &rt, nil
+}
+
+func cmp_wildcard(obj1, obj2 interface{}, op string) (bool, error) {
+	var sobj1 string
+	switch obj1.(type) {
+	case string:
+		sobj1 = strings.ReplaceAll(obj1.(string), "'", "")
+		sobj1 = fmt.Sprintf("\"%v\"", sobj1)
+	default:
+		sobj1 = fmt.Sprintf("%v", obj1)
+	}
+	var sobj2 string
+	switch obj1.(type) {
+	case string:
+		sobj2 = strings.ReplaceAll(obj2.(string), "'", "")
+		sobj2 = fmt.Sprintf("\"%v\"", sobj2)
+	default:
+		sobj2 = fmt.Sprintf("%v", obj2)
+	}
+	re, err := regexp.Compile(sobj2)
+	if err != nil {
+		return false, err
+	}
+	switch op {
+	case "=~":
+		return re.MatchString(sobj1), nil
+	case "!~":
+		return !re.MatchString(sobj1), nil
+	}
+	return false, SyntaxError
 }
 
 func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
