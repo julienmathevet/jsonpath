@@ -7,6 +7,54 @@ import (
 	"testing"
 )
 
+func TestParseWildcardCondition(t *testing.T) {
+	w := WildCardFilterSelection{Key: "@.metadata.project_name =~ 'A.*'"}
+	r := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"project_name": "AProject",
+		},
+	}
+	res, err := w.filter(r)
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
+	if res == nil {
+		t.Errorf("filter() = nil; want true")
+	}
+}
+
+func TestParseWildcardConditionDoesNotMatch(t *testing.T) {
+	w := WildCardFilterSelection{Key: "@.metadata.project_name =~ 'A.*'"}
+	r := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"project_name": "BProject",
+		},
+	}
+	res, err := w.filter(r)
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
+	if res != nil {
+		t.Errorf("filter() = %v; want nil", res)
+	}
+}
+
+func TestParseWildcardConditionDifferentOf(t *testing.T) {
+	w := WildCardFilterSelection{Key: "@.metadata.project_name !~ 'A.*'"}
+	r := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"project_name": "BProject",
+		},
+	}
+	res, err := w.filter(r)
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
+	if res == nil {
+		t.Errorf("filter() = nil; want true")
+	}
+}
+
 func TestGetConditionsFromKeySimple(t *testing.T) {
 	w := WildCardFilterSelection{Key: "@.metadata.project_name != 'DEV-QA-WEB-BROWSER'"}
 	conditions, err := w.GetConditionsFromKey()
