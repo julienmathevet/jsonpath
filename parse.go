@@ -231,7 +231,7 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		//ops := re.FindAllString(w.Key, -1)
 		match := re.FindAllStringSubmatch(condition, -1)
 
-		if len(match) == 0 {
+		if match == nil || len(match) == 0 {
 			return val, SyntaxError
 		}
 
