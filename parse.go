@@ -228,7 +228,7 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		if err != nil {
 			return val, err
 		}
-		simpleRe, err := regexp.Compile(`([@$.\w]+)`)
+		simpleRe, err := regexp.Compile(`([@$.\w]+)$`)
 		if err != nil {
 			return val, err
 		}
