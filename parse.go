@@ -110,7 +110,7 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 	case map[string]interface{}:
 		var ret []interface{}
 		var keys []string
-		for key, _ := range tv {
+		for key := range tv {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
@@ -228,11 +228,19 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		if err != nil {
 			return val, err
 		}
+		simpleRe, err := regexp.Compile(`([@$.\w]+)`)
+		if err != nil {
+			return val, err
+		}
+
 		//ops := re.FindAllString(w.Key, -1)
 		match := re.FindAllStringSubmatch(condition, -1)
 
 		if match == nil || len(match) == 0 {
-			return val, SyntaxError
+			match = simpleRe.FindAllStringSubmatch(condition, -1)
+			if match == nil || len(match) == 0 {
+				return val, SyntaxError
+			}
 		}
 
 		wa, _ := Parse(strings.Replace(match[0][1], "@", "$", 1))
@@ -240,8 +248,9 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		if subv == nil {
 			continue
 		}
-
-		if len(match[0]) == 4 {
+		if len(match[0]) == 2 {
+			shouldKeep = true
+		} else if len(match[0]) == 4 {
 			op := match[0][2]
 			if op == "=~" || op == "!~" {
 				isOk, _ := cmp_wildcard(subv, match[0][3], op)

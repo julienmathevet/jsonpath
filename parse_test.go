@@ -268,6 +268,7 @@ func TestParse(t *testing.T) {
       , "title"    : "The Lord of the Rings"
       , "isbn"     : "0-395-19395-8"
       , "price"    : 22.99
+	  , "discount": true
       }
     ]
   , "bicycle" :
@@ -383,6 +384,18 @@ func TestParse(t *testing.T) {
 				"author":       "Nigel Rees",
 				"title":        "Saying of the Century",
 				"price":        8.95,
+			},
+			},
+		},
+		{
+			t: `store.book[?(@.discount)]`,
+			expected: []interface{}{map[string]interface{}{
+				"category": "fiction",
+				"author":   "J. R. R. Tolkien",
+				"title":    "The Lord of the Rings",
+				"isbn":     "0-395-19395-8",
+				"price":    22.99,
+				"discount": true,
 			},
 			},
 		},
