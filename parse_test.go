@@ -55,6 +55,56 @@ func TestParseWildcardConditionDifferentOf(t *testing.T) {
 	}
 }
 
+func TestParseWildcardConditionWithBackslash(t *testing.T) {
+	w := WildCardFilterSelection{Key: "@.context.releaseVersion != ''"}
+
+	r := map[string]interface{}{
+		"context": map[string]interface{}{
+			"releaseVersion": "FCL-11 \\ \\ QAMLess",
+		},
+	}
+	res, err := w.filter(r)
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
+	if res == nil {
+		t.Errorf("filter() = nil; want true")
+	}
+}
+
+func TestParseWildcardConditionWithDoubleQuotes(t *testing.T) {
+	w := WildCardFilterSelection{Key: "@.context.releaseVersion != ''"}
+
+	r := map[string]interface{}{
+		"context": map[string]interface{}{
+			"releaseVersion": "FCL-11 \" \" QAMLess",
+		},
+	}
+	res, err := w.filter(r)
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
+	if res == nil {
+		t.Errorf("filter() = nil; want true")
+	}
+}
+
+func TestAdvancedParseWildcardCondition(t *testing.T) {
+	w := WildCardFilterSelection{Key: "@.context.releaseVersion == 'FCL-11 \" \" \\ \\ QAMLess'"}
+	r := map[string]interface{}{
+		"context": map[string]interface{}{
+			"releaseVersion": "FCL-11 \" \" \\ \\ QAMLess",
+		},
+	}
+	res, err := w.filter(r)
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
+	if res == nil {
+		t.Errorf("filter() = nil; want true")
+	}
+}
+
 func TestGetConditionsFromKeySimple(t *testing.T) {
 	w := WildCardFilterSelection{Key: "@.metadata.project_name != 'DEV-QA-WEB-BROWSER'"}
 	conditions, err := w.GetConditionsFromKey()

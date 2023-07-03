@@ -513,6 +513,8 @@ func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
 	switch obj1.(type) {
 	case string:
 		sobj1 = strings.ReplaceAll(obj1.(string), "'", "")
+		sobj1 = strings.ReplaceAll(sobj1, "\"", "")
+		sobj1 = strings.ReplaceAll(sobj1, "\\", "")
 		sobj1 = fmt.Sprintf("\"%v\"", sobj1)
 	default:
 		sobj1 = fmt.Sprintf("%v", obj1)
@@ -521,6 +523,8 @@ func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
 	switch obj1.(type) {
 	case string:
 		sobj2 = strings.ReplaceAll(obj2.(string), "'", "")
+		sobj2 = strings.ReplaceAll(sobj2, "\"", "")
+		sobj2 = strings.ReplaceAll(sobj2, "\\", "")
 		sobj2 = fmt.Sprintf("\"%v\"", sobj2)
 	default:
 		sobj2 = fmt.Sprintf("%v", obj2)
