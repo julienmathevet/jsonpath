@@ -41,7 +41,7 @@ func BenchmarkParseSimplePath(b *testing.B) {
 
 func BenchmarkParseCached(b *testing.B) {
 	// Pre-warm the cache
-	Parse("$.store.book.title")
+	_, _ = Parse("$.store.book.title")
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

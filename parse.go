@@ -21,14 +21,33 @@ type node interface {
 	SetNext(v node)
 }
 
+// Errors returned by JSONPath operations
 var (
-	MapTypeError      = errors.New("Expected Type to be a Map.")
-	ArrayTypeError    = errors.New("Expected Type to be an Array.")
-	SyntaxError       = errors.New("Bad Syntax.")
-	NotSupportedError = errors.New("Not Supported")
-	NotFound          = errors.New("Not Found")
-	IndexOutOfBounds  = errors.New("Out of Bounds")
+	ErrMapType      = errors.New("expected type to be a map")
+	ErrArrayType    = errors.New("expected type to be an array")
+	ErrSyntax       = errors.New("bad syntax")
+	ErrNotSupported = errors.New("not supported")
+	ErrNotFound     = errors.New("not found")
+	ErrOutOfBounds  = errors.New("index out of bounds")
 )
+
+// Deprecated: Use ErrMapType instead
+var MapTypeError = ErrMapType
+
+// Deprecated: Use ErrArrayType instead
+var ArrayTypeError = ErrArrayType
+
+// Deprecated: Use ErrSyntax instead
+var SyntaxError = ErrSyntax
+
+// Deprecated: Use ErrNotSupported instead
+var NotSupportedError = ErrNotSupported
+
+// Deprecated: Use ErrNotFound instead
+var NotFound = ErrNotFound
+
+// Deprecated: Use ErrOutOfBounds instead
+var IndexOutOfBounds = ErrOutOfBounds
 
 // Pre-compiled regexes for filter operations
 var (
@@ -196,7 +215,7 @@ func (w *WildCardKeySelection) Apply(v interface{}) (interface{}, error) {
 	case map[string]interface{}:
 		var ret []interface{}
 		var keys []string
-		for key, _ := range tv {
+		for key := range tv {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
@@ -250,14 +269,8 @@ func (w *WildCardFilterSelection) GetConditionsFromKey() ([]string, error) {
 	if w.Key == "" {
 		return nil, SyntaxError
 	}
-	conditions := []string{}
 	// split by || condition using pre-compiled regex
-	orConditions := orConditionRe.Split(w.Key, -1)
-	for _, orCondition := range orConditions {
-		// if the orCondition contains an && condition and the terms of the end condition are between parentheses
-		// append to conditions
-		conditions = append(conditions, orCondition)
-	}
+	conditions := orConditionRe.Split(w.Key, -1)
 	return conditions, nil
 }
 
@@ -276,9 +289,9 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 		// Use pre-compiled regexes
 		match := filterConditionRe.FindAllStringSubmatch(condition, -1)
 
-		if match == nil || len(match) == 0 {
+		if len(match) == 0 {
 			match = simpleConditionRe.FindAllStringSubmatch(condition, -1)
-			if match == nil || len(match) == 0 {
+			if len(match) == 0 {
 				return val, SyntaxError
 			}
 		}
@@ -375,7 +388,7 @@ func (d *DescentSelection) Apply(v interface{}) (interface{}, error) {
 		return ret, nil
 	case map[string]interface{}:
 		var keys []string
-		for key, _ := range tv {
+		for key := range tv {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)

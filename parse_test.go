@@ -233,14 +233,6 @@ func TestGetNode(t *testing.T) {
 	}
 }
 
-func collapseNodes(n ...node) node {
-	rt := &RootNode{}
-	for i := range n {
-		rt.SetNext(n[i])
-	}
-	return rt
-}
-
 func TestParse(t *testing.T) {
 	var books = make(map[string]interface{})
 	err := json.Unmarshal(
