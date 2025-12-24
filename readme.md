@@ -4,7 +4,7 @@ A fast golang implementation of JSONPath syntax.
 Follows the majority of rules from http://goessner.net/articles/JsonPath/
 with some minor differences.
 
-**Go Version Required**: 1.18+
+**Go Version Required**: 1.25+
 
 ## Get Started
 
