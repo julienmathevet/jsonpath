@@ -57,6 +57,13 @@ func BenchmarkParseSimplePathUncached(b *testing.B) {
 	}
 }
 
+func BenchmarkParseNoCache(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ParseNoCache("$.store.bicycle.color")
+	}
+}
+
 func BenchmarkNormalize(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {

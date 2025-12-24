@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Applicator interface {
@@ -37,13 +38,47 @@ var (
 )
 
 // Cache for compiled wildcard patterns
-var wildcardCache = make(map[string]*regexp.Regexp)
+var (
+	wildcardCache   = make(map[string]*regexp.Regexp)
+	wildcardCacheMu sync.RWMutex
+)
 
 // Cache for parsed paths - avoids re-parsing the same path
-var parseCache = make(map[string]Applicator)
+var (
+	parseCache   = make(map[string]Applicator)
+	parseCacheMu sync.RWMutex
+)
 
 // Regex to detect simple dot-notation paths (e.g., $.foo.bar.baz)
 var simpleDotPathRe = regexp.MustCompile(`^\$(\.[a-zA-Z_][a-zA-Z0-9_]*)+$`)
+
+// ClearParseCache clears the parsed path cache.
+// Call this if you need to free memory or if paths are generated dynamically.
+func ClearParseCache() {
+	parseCacheMu.Lock()
+	parseCache = make(map[string]Applicator)
+	parseCacheMu.Unlock()
+}
+
+// ClearWildcardCache clears the compiled wildcard regex cache.
+func ClearWildcardCache() {
+	wildcardCacheMu.Lock()
+	wildcardCache = make(map[string]*regexp.Regexp)
+	wildcardCacheMu.Unlock()
+}
+
+// ClearAllCaches clears all internal caches (parse cache and wildcard cache).
+func ClearAllCaches() {
+	ClearParseCache()
+	ClearWildcardCache()
+}
+
+// ParseCacheSize returns the number of entries in the parse cache.
+func ParseCacheSize() int {
+	parseCacheMu.RLock()
+	defer parseCacheMu.RUnlock()
+	return len(parseCache)
+}
 
 func applyNext(nn node, v interface{}) (interface{}, error) {
 	if nn == nil {
@@ -480,19 +515,38 @@ func getNode(s string) (node, string, error) {
 	}
 }
 
-// Parse parses the JSONPath and returns a object that can be applied to
-// a structure to filter it down.
+// Parse parses the JSONPath and returns an Applicator that can be applied to
+// a structure to filter it down. Results are cached for performance.
+// Use ParseNoCache if you need to avoid caching (e.g., for dynamic paths).
 func Parse(s string) (Applicator, error) {
-	// Check cache first
+	// Check cache first (read lock)
+	parseCacheMu.RLock()
 	if cached, ok := parseCache[s]; ok {
+		parseCacheMu.RUnlock()
 		return cached, nil
 	}
+	parseCacheMu.RUnlock()
 
+	// Parse the path
+	result, err := ParseNoCache(s)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store in cache (write lock)
+	parseCacheMu.Lock()
+	parseCache[s] = result
+	parseCacheMu.Unlock()
+
+	return result, nil
+}
+
+// ParseNoCache parses the JSONPath without using the cache.
+// Use this for dynamically generated paths to avoid unbounded cache growth.
+func ParseNoCache(s string) (Applicator, error) {
 	// Fast path for simple dot-notation: $.foo.bar.baz
 	if simpleDotPathRe.MatchString(s) {
-		result := parseSimpleDotPath(s)
-		parseCache[s] = result
-		return result, nil
+		return parseSimpleDotPath(s), nil
 	}
 
 	var nn node
@@ -511,7 +565,6 @@ func Parse(s string) (Applicator, error) {
 		c.SetNext(nn)
 		c = nn
 	}
-	parseCache[s] = &rt
 	return &rt, nil
 }
 
@@ -560,14 +613,19 @@ func cmp_wildcard(obj1, obj2 interface{}, op string) (bool, error) {
 	}
 
 	// Use cached regex or compile and cache
+	wildcardCacheMu.RLock()
 	re, ok := wildcardCache[pattern]
+	wildcardCacheMu.RUnlock()
+
 	if !ok {
 		var err error
 		re, err = regexp.Compile(pattern)
 		if err != nil {
 			return false, err
 		}
+		wildcardCacheMu.Lock()
 		wildcardCache[pattern] = re
+		wildcardCacheMu.Unlock()
 	}
 	switch op {
 	case "=~":

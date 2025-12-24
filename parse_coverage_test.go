@@ -626,6 +626,47 @@ func TestFlattenAppend(t *testing.T) {
 	}
 }
 
+func TestCacheFunctions(t *testing.T) {
+	// Clear caches first
+	ClearAllCaches()
+
+	// Parse should populate cache
+	_, err := Parse("$.test.path")
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	if ParseCacheSize() != 1 {
+		t.Errorf("ParseCacheSize() = %d; want 1", ParseCacheSize())
+	}
+
+	// Parse same path should hit cache
+	_, err = Parse("$.test.path")
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	if ParseCacheSize() != 1 {
+		t.Errorf("ParseCacheSize() = %d; want 1 (should be cached)", ParseCacheSize())
+	}
+
+	// ParseNoCache should not affect cache size
+	_, err = ParseNoCache("$.another.path")
+	if err != nil {
+		t.Fatalf("ParseNoCache failed: %v", err)
+	}
+
+	if ParseCacheSize() != 1 {
+		t.Errorf("ParseCacheSize() = %d; want 1 (ParseNoCache should not cache)", ParseCacheSize())
+	}
+
+	// Clear cache
+	ClearParseCache()
+	if ParseCacheSize() != 0 {
+		t.Errorf("ParseCacheSize() = %d after clear; want 0", ParseCacheSize())
+	}
+}
+
 func TestMinNotNeg1(t *testing.T) {
 	testcases := []struct {
 		name string

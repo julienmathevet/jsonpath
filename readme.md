@@ -34,13 +34,32 @@ result, err := filter.Apply(json_data)
 ## Performance
 
 This library is optimized for performance with:
+- Cached path parsing (32x faster for repeated paths)
 - Pre-compiled regex patterns
-- Cached path parsing in filter operations
 - Direct type comparisons (no reflection-based evaluation)
 - Minimal memory allocations
 
 Benchmark results show filter operations are **10x faster** than naive implementations,
 with **95% fewer memory allocations**. See [BENCHMARK.md](BENCHMARK.md) for details.
+
+### Cache Control
+
+Parsed paths are cached by default. For dynamic paths or memory control:
+
+```go
+// Parse without caching (for dynamic paths)
+filter, err := jsonpath.ParseNoCache("$.dynamic.path")
+
+// Clear all caches (to free memory)
+jsonpath.ClearAllCaches()
+
+// Clear specific caches
+jsonpath.ClearParseCache()
+jsonpath.ClearWildcardCache()
+
+// Check cache size
+size := jsonpath.ParseCacheSize()
+```
 
 ## Operators
 
