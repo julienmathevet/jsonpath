@@ -675,7 +675,7 @@ func TestMinNotNeg1(t *testing.T) {
 		want int
 	}{
 		{name: "single value", a: 5, bs: nil, want: 5},
-		{name: "a is -1 takes last", a: -1, bs: []int{3, 5}, want: 5},
+		{name: "a is -1 takes min", a: -1, bs: []int{3, 5}, want: 3},
 		{name: "b smaller", a: 10, bs: []int{5, 8}, want: 5},
 		{name: "a smaller", a: 2, bs: []int{5, 8}, want: 2},
 		{name: "all -1", a: -1, bs: []int{-1, -1}, want: -1},

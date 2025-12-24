@@ -24,6 +24,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - Regex compilation no longer happens on every filter call
 - Sub-path parsing is now cached to avoid redundant parsing
+- Filter flow logic: `=~` and `!~` operators no longer incorrectly fall through to `cmp_any`
+- Condition checks: fixed `||` to `&&` for proper error/nil handling in wildcard selections
+- `cmp_wildcard` type switch: now correctly matches pattern from `obj2` parameter
+- `minNotNeg1` function: now correctly finds minimum instead of returning last value when first arg is -1
+- Potential panic in `normalize`: added bounds check before accessing string index
+- Thread-safety: `WildCardFilterSelection.pathCache` now protected with mutex
+- Thread-safety: `getCachedPath` now returns errors and uses proper locking
 
 ## [1.0.0] - Previous
 

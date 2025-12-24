@@ -119,17 +119,17 @@ func (r *RootNode) SetNext(n node) {
 	r.NextNode = n
 }
 
-// Apply is the main workhourse, each node type will apply it's filtering rules
+// Apply is the main workhorse, each node type will apply its filtering rules
 // to the provided value, returning the filtered result.
-// It is expected that the node will call's it's Next Nodes Apply method as
-// need by the rules of the Node.
+// It is expected that the node will call its NextNode's Apply method as
+// needed by the rules of the Node.
 func (r *RootNode) Apply(v interface{}) (interface{}, error) {
 	return applyNext(r.NextNode, v)
 }
 
-// MapSelection is a the basic filter for a Map type key. It will look at the
-// in coming v and try to turn it into a map[string]interface{} value. If it
-// successeeds it will then apply the NextNode to that interface value, or it
+// MapSelection is the basic filter for a Map type key. It will look at the
+// incoming v and try to turn it into a map[string]interface{} value. If it
+// succeeds it will then apply the NextNode to that interface value, or it
 // will return the value if it has no NextNode.
 type MapSelection struct {
 	Key string
@@ -148,7 +148,7 @@ func (m *MapSelection) Apply(v interface{}) (interface{}, error) {
 	return applyNext(m.NextNode, nv)
 }
 
-// ArrySelection is a the basic filter for a Array type key. It is like MapSelection but for Arrays.
+// ArraySelection is the basic filter for an Array type key. It is like MapSelection but for Arrays.
 type ArraySelection struct {
 	Key int
 	RootNode
@@ -185,7 +185,7 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 		for _, key := range keys {
 			rval, err := applyNext(w.NextNode, tv[key])
 			// Don't add anything that causes an error or returns nil.
-			if err == nil || rval != nil {
+			if err == nil && rval != nil {
 				ret = flattenAppend(ret, rval)
 			}
 		}
@@ -195,7 +195,7 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 		for _, val := range tv {
 			rval, err := applyNext(w.NextNode, val)
 			// Don't add anything that causes an error or returns nil.
-			if err == nil || rval != nil {
+			if err == nil && rval != nil {
 				ret = flattenAppend(ret, rval)
 			}
 		}
@@ -222,7 +222,7 @@ func (w *WildCardKeySelection) Apply(v interface{}) (interface{}, error) {
 		for _, key := range keys {
 			rval, err := applyNext(w.NextNode, key)
 			// Don't add anything that causes an error or returns nil.
-			if err == nil || rval != nil {
+			if err == nil && rval != nil {
 				ret = flattenAppend(ret, rval)
 			}
 		}
@@ -237,7 +237,8 @@ type WildCardFilterSelection struct {
 	RootNode
 	Key string
 	// Cache for parsed sub-paths to avoid re-parsing on each filter call
-	pathCache map[string]Applicator
+	pathCache   map[string]Applicator
+	pathCacheMu sync.RWMutex
 }
 
 func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
@@ -298,7 +299,13 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 
 		// Use cached parsed path or parse and cache it
 		pathExpr := match[0][1]
-		wa := w.getCachedPath(pathExpr)
+		wa, err := w.getCachedPath(pathExpr)
+		if err != nil {
+			return val, err
+		}
+		// Apply the path to get the value. Error is intentionally ignored because
+		// for filter expressions with OR conditions, a missing path should just
+		// skip this condition rather than fail the entire filter.
 		subv, _ := wa.Apply(val)
 		if subv == nil {
 			continue
@@ -307,18 +314,13 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 			shouldKeep = true
 		} else if len(match[0]) == 4 {
 			op := match[0][2]
+			var isOk bool
 			if op == "=~" || op == "!~" {
-				isOk, _ := cmp_wildcard(subv, match[0][3], op)
-				if !isOk {
-					continue
-				} else {
-					shouldKeep = true
-				}
-			}
-			isOk, _ := cmp_any(subv, match[0][3], op)
-			if !isOk {
-				continue
+				isOk, _ = cmp_wildcard(subv, match[0][3], op)
 			} else {
+				isOk, _ = cmp_any(subv, match[0][3], op)
+			}
+			if isOk {
 				shouldKeep = true
 			}
 		}
@@ -331,20 +333,33 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 }
 
 // getCachedPath returns a cached parsed path or parses and caches it
-func (w *WildCardFilterSelection) getCachedPath(pathExpr string) Applicator {
+func (w *WildCardFilterSelection) getCachedPath(pathExpr string) (Applicator, error) {
+	w.pathCacheMu.RLock()
+	if w.pathCache != nil {
+		if cached, ok := w.pathCache[pathExpr]; ok {
+			w.pathCacheMu.RUnlock()
+			return cached, nil
+		}
+	}
+	w.pathCacheMu.RUnlock()
+
+	parsed, err := Parse(strings.Replace(pathExpr, "@", "$", 1))
+	if err != nil {
+		return nil, err
+	}
+
+	w.pathCacheMu.Lock()
 	if w.pathCache == nil {
 		w.pathCache = make(map[string]Applicator)
 	}
-	if cached, ok := w.pathCache[pathExpr]; ok {
-		return cached
-	}
-	parsed, _ := Parse(strings.Replace(pathExpr, "@", "$", 1))
 	w.pathCache[pathExpr] = parsed
-	return parsed
+	w.pathCacheMu.Unlock()
+
+	return parsed, nil
 }
 
-// DescentSelection is a filter that recursively descends applying it's NextNode and
-// corrlating the results.
+// DescentSelection is a filter that recursively descends applying its NextNode and
+// correlating the results.
 type DescentSelection struct {
 	RootNode
 }
@@ -417,7 +432,7 @@ func (d *DescentSelection) Apply(v interface{}) (interface{}, error) {
 func minNotNeg1(a int, bs ...int) int {
 	m := a
 	for _, b := range bs {
-		if a == -1 || (b != -1 && b < m) {
+		if m == -1 || (b != -1 && b < m) {
 			m = b
 		}
 	}
@@ -451,10 +466,9 @@ func normalize(s string) string {
 		}
 
 		if s[0] == '.' {
-			if s[1] == '.' {
+			if len(s) > 1 && s[1] == '.' {
 				b.WriteString("[..]")
 				s = s[2:]
-
 			} else {
 				s = s[1:]
 			}
@@ -616,11 +630,11 @@ func cmp_wildcard(obj1, obj2 interface{}, op string) (bool, error) {
 		sobj1 = fmt.Sprintf("%v", obj1)
 	}
 
-	// Build pattern string
+	// Build pattern string from obj2
 	var pattern string
-	switch obj1.(type) {
+	switch v := obj2.(type) {
 	case string:
-		pattern = "^" + strings.ReplaceAll(obj2.(string), "'", "") + "$"
+		pattern = "^" + strings.ReplaceAll(v, "'", "") + "$"
 	default:
 		pattern = fmt.Sprintf("^%v$", obj2)
 	}
