@@ -39,6 +39,12 @@ var (
 // Cache for compiled wildcard patterns
 var wildcardCache = make(map[string]*regexp.Regexp)
 
+// Cache for parsed paths - avoids re-parsing the same path
+var parseCache = make(map[string]Applicator)
+
+// Regex to detect simple dot-notation paths (e.g., $.foo.bar.baz)
+var simpleDotPathRe = regexp.MustCompile(`^\$(\.[a-zA-Z_][a-zA-Z0-9_]*)+$`)
+
 func applyNext(nn node, v interface{}) (interface{}, error) {
 	if nn == nil {
 		return v, nil
@@ -477,23 +483,62 @@ func getNode(s string) (node, string, error) {
 // Parse parses the JSONPath and returns a object that can be applied to
 // a structure to filter it down.
 func Parse(s string) (Applicator, error) {
+	// Check cache first
+	if cached, ok := parseCache[s]; ok {
+		return cached, nil
+	}
+
+	// Fast path for simple dot-notation: $.foo.bar.baz
+	if simpleDotPathRe.MatchString(s) {
+		result := parseSimpleDotPath(s)
+		parseCache[s] = result
+		return result, nil
+	}
+
 	var nn node
 	var err error
-	s = normalize(s)
+	normalized := normalize(s)
 	rt := RootNode{}
 	// Remove the starting '$'
-	s = s[1:]
+	remaining := normalized[1:]
 	var c node
 	c = &rt
-	for len(s) > 0 {
-		nn, s, err = getNode(s)
+	for len(remaining) > 0 {
+		nn, remaining, err = getNode(remaining)
 		if err != nil {
 			return nil, err
 		}
 		c.SetNext(nn)
 		c = nn
 	}
+	parseCache[s] = &rt
 	return &rt, nil
+}
+
+// parseSimpleDotPath is a fast path for simple dot-notation paths like $.foo.bar
+// It avoids the overhead of normalize and getNode for this common case.
+func parseSimpleDotPath(s string) Applicator {
+	// Skip the "$." prefix
+	s = s[2:]
+	rt := &RootNode{}
+	var c node = rt
+
+	for len(s) > 0 {
+		// Find next dot or end
+		dotIdx := strings.Index(s, ".")
+		var key string
+		if dotIdx == -1 {
+			key = s
+			s = ""
+		} else {
+			key = s[:dotIdx]
+			s = s[dotIdx+1:]
+		}
+		node := &MapSelection{Key: key}
+		c.SetNext(node)
+		c = node
+	}
+	return rt
 }
 
 func cmp_wildcard(obj1, obj2 interface{}, op string) (bool, error) {

@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - OR conditions support in filters using `||`
 
 ### Changed
+- **Performance**: Parse with cache is 32x faster (5.4 ns vs 173.5 ns)
+- **Performance**: Simple dot-notation paths (`$.foo.bar`) are 3.3x faster with dedicated fast path
 - **Performance**: Filter operations are now up to 10x faster
 - **Performance**: `cmp_any` comparison is 40x faster (replaced `go/types.Eval` with direct comparisons)
 - **Performance**: `cmp_wildcard` regex matching is 6.7x faster (cached regex compilation)

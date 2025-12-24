@@ -21,3 +21,7 @@ _testmain.go
 
 *.exe
 *.test
+
+# Temporary files
+benchmark_*.txt
+coverage.out

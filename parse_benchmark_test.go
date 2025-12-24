@@ -32,6 +32,31 @@ func BenchmarkParse(b *testing.B) {
 	}
 }
 
+func BenchmarkParseSimplePath(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = Parse("$.store.bicycle.color")
+	}
+}
+
+func BenchmarkParseCached(b *testing.B) {
+	// Pre-warm the cache
+	Parse("$.store.book.title")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = Parse("$.store.book.title")
+	}
+}
+
+func BenchmarkParseSimplePathUncached(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		// Use unique paths to avoid cache hits
+		_ = parseSimpleDotPath("$.store.bicycle.color")
+	}
+}
+
 func BenchmarkNormalize(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
