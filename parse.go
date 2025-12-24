@@ -3,8 +3,6 @@ package jsonpath
 import (
 	"errors"
 	"fmt"
-	"go/token"
-	"go/types"
 	"io"
 	"reflect"
 	"regexp"
@@ -30,6 +28,16 @@ var (
 	NotFound          = errors.New("Not Found")
 	IndexOutOfBounds  = errors.New("Out of Bounds")
 )
+
+// Pre-compiled regexes for filter operations
+var (
+	filterConditionRe = regexp.MustCompile(`([@$.\w]+) ([<=>!~]{1,2}) ([']?[\w\W\d\s]+[']?)`)
+	simpleConditionRe = regexp.MustCompile(`([@$.\w]+)$`)
+	orConditionRe     = regexp.MustCompile(`(\s+\|\|\s+)`)
+)
+
+// Cache for compiled wildcard patterns
+var wildcardCache = make(map[string]*regexp.Regexp)
 
 func applyNext(nn node, v interface{}) (interface{}, error) {
 	if nn == nil {
@@ -168,6 +176,8 @@ func (w *WildCardKeySelection) Apply(v interface{}) (interface{}, error) {
 type WildCardFilterSelection struct {
 	RootNode
 	Key string
+	// Cache for parsed sub-paths to avoid re-parsing on each filter call
+	pathCache map[string]Applicator
 }
 
 func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
@@ -200,9 +210,8 @@ func (w *WildCardFilterSelection) GetConditionsFromKey() ([]string, error) {
 		return nil, SyntaxError
 	}
 	conditions := []string{}
-	re1 := regexp.MustCompile(`(\s+\|\|\s+)`)
-	// split by || condition
-	orConditions := re1.Split(w.Key, -1)
+	// split by || condition using pre-compiled regex
+	orConditions := orConditionRe.Split(w.Key, -1)
 	for _, orCondition := range orConditions {
 		// if the orCondition contains an && condition and the terms of the end condition are between parentheses
 		// append to conditions
@@ -223,27 +232,19 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 	}
 	shouldKeep := false
 	for _, condition := range conditions {
-		//re, err := regexp.Compile(`[\S]+`)
-		re, err := regexp.Compile(`([@$.\w]+) ([<=>!~]{1,2}) ([']?[\w\W\d\s]+[']?)`)
-		if err != nil {
-			return val, err
-		}
-		simpleRe, err := regexp.Compile(`([@$.\w]+)$`)
-		if err != nil {
-			return val, err
-		}
-
-		//ops := re.FindAllString(w.Key, -1)
-		match := re.FindAllStringSubmatch(condition, -1)
+		// Use pre-compiled regexes
+		match := filterConditionRe.FindAllStringSubmatch(condition, -1)
 
 		if match == nil || len(match) == 0 {
-			match = simpleRe.FindAllStringSubmatch(condition, -1)
+			match = simpleConditionRe.FindAllStringSubmatch(condition, -1)
 			if match == nil || len(match) == 0 {
 				return val, SyntaxError
 			}
 		}
 
-		wa, _ := Parse(strings.Replace(match[0][1], "@", "$", 1))
+		// Use cached parsed path or parse and cache it
+		pathExpr := match[0][1]
+		wa := w.getCachedPath(pathExpr)
 		subv, _ := wa.Apply(val)
 		if subv == nil {
 			continue
@@ -273,6 +274,19 @@ func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
 	}
 	rval, err := applyNext(w.NextNode, val)
 	return rval, err
+}
+
+// getCachedPath returns a cached parsed path or parses and caches it
+func (w *WildCardFilterSelection) getCachedPath(pathExpr string) Applicator {
+	if w.pathCache == nil {
+		w.pathCache = make(map[string]Applicator)
+	}
+	if cached, ok := w.pathCache[pathExpr]; ok {
+		return cached
+	}
+	parsed, _ := Parse(strings.Replace(pathExpr, "@", "$", 1))
+	w.pathCache[pathExpr] = parsed
+	return parsed
 }
 
 // DescentSelection is a filter that recursively descends applying it's NextNode and
@@ -360,7 +374,12 @@ func normalize(s string) string {
 	if s == "" || s == "$." {
 		return "$"
 	}
-	r := "$"
+
+	// Pre-allocate builder with estimated capacity
+	var b strings.Builder
+	b.Grow(len(s) * 2)
+	b.WriteByte('$')
+
 	// first thing to do is read passed the $
 	if s[0] == '$' {
 		s = s[1:]
@@ -370,7 +389,7 @@ func normalize(s string) string {
 		// Grab all the bracketed entries
 		for len(s) > 0 && s[0] == '[' {
 			n := strings.Index(s, "]")
-			r += s[0 : n+1]
+			b.WriteString(s[0 : n+1])
 			s = s[n+1:]
 		}
 		if len(s) <= 0 || s == "." {
@@ -379,7 +398,7 @@ func normalize(s string) string {
 
 		if s[0] == '.' {
 			if s[1] == '.' {
-				r += "[..]"
+				b.WriteString("[..]")
 				s = s[2:]
 
 			} else {
@@ -390,14 +409,14 @@ func normalize(s string) string {
 			break
 		}
 		if s[0] == '*' {
-			r += "[*]"
+			b.WriteString("[*]")
 			if len(s) == 1 {
 				break
 			}
 			s = s[1:]
 		}
 		if s[0] == '@' {
-			r += "[@]"
+			b.WriteString("[@]")
 			if len(s) == 1 {
 				break
 			}
@@ -409,14 +428,18 @@ func normalize(s string) string {
 			continue
 		}
 		if n != -1 {
-			r += `["` + s[:n] + `"]`
+			b.WriteString(`["`)
+			b.WriteString(s[:n])
+			b.WriteString(`"]`)
 			s = s[n:]
 		} else {
-			r += `["` + s + `"]`
+			b.WriteString(`["`)
+			b.WriteString(s)
+			b.WriteString(`"]`)
 			s = ""
 		}
 	}
-	return r
+	return b.String()
 }
 
 func getNode(s string) (node, string, error) {
@@ -475,24 +498,31 @@ func Parse(s string) (Applicator, error) {
 
 func cmp_wildcard(obj1, obj2 interface{}, op string) (bool, error) {
 	var sobj1 string
-	switch obj1.(type) {
+	switch v := obj1.(type) {
 	case string:
-		sobj1 = strings.ReplaceAll(obj1.(string), "'", "")
-		sobj1 = fmt.Sprintf("%v", sobj1)
+		sobj1 = strings.ReplaceAll(v, "'", "")
 	default:
 		sobj1 = fmt.Sprintf("%v", obj1)
 	}
-	var sobj2 string
+
+	// Build pattern string
+	var pattern string
 	switch obj1.(type) {
 	case string:
-		sobj2 = strings.ReplaceAll(obj2.(string), "'", "")
-		sobj2 = fmt.Sprintf("^%v$", sobj2)
+		pattern = "^" + strings.ReplaceAll(obj2.(string), "'", "") + "$"
 	default:
-		sobj2 = fmt.Sprintf("^%v$", obj2)
+		pattern = fmt.Sprintf("^%v$", obj2)
 	}
-	re, err := regexp.Compile(sobj2)
-	if err != nil {
-		return false, err
+
+	// Use cached regex or compile and cache
+	re, ok := wildcardCache[pattern]
+	if !ok {
+		var err error
+		re, err = regexp.Compile(pattern)
+		if err != nil {
+			return false, err
+		}
+		wildcardCache[pattern] = re
 	}
 	switch op {
 	case "=~":
@@ -509,34 +539,109 @@ func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
 	default:
 		return false, fmt.Errorf("op should only be <, <=, ==, !=, >= and >")
 	}
-	var sobj1 string
-	switch obj1.(type) {
-	case string:
-		sobj1 = strings.ReplaceAll(obj1.(string), "'", "")
-		sobj1 = fmt.Sprintf("\"%v\"", sobj1)
-	default:
-		sobj1 = fmt.Sprintf("%v", obj1)
-	}
-	var sobj2 string
-	switch obj1.(type) {
-	case string:
-		sobj2 = strings.ReplaceAll(obj2.(string), "'", "")
-		sobj2 = fmt.Sprintf("\"%v\"", sobj2)
-	default:
-		sobj2 = fmt.Sprintf("%v", obj2)
-	}
 
-	exp := fmt.Sprintf("%v %s %v", sobj1, op, sobj2)
-	fset := token.NewFileSet()
-	res, err := types.Eval(fset, nil, 0, exp)
-	if err != nil {
-		return false, err
+	// Convert obj2 (from JSON path expression) to comparable value
+	obj2Str := strings.ReplaceAll(fmt.Sprintf("%v", obj2), "'", "")
+
+	// Try to compare based on obj1's type
+	switch v1 := obj1.(type) {
+	case float64:
+		v2, err := strconv.ParseFloat(obj2Str, 64)
+		if err != nil {
+			return false, err
+		}
+		return compareFloat64(v1, v2, op), nil
+
+	case int:
+		v2, err := strconv.ParseInt(obj2Str, 10, 64)
+		if err != nil {
+			// Try as float
+			v2f, err := strconv.ParseFloat(obj2Str, 64)
+			if err != nil {
+				return false, err
+			}
+			return compareFloat64(float64(v1), v2f, op), nil
+		}
+		return compareInt64(int64(v1), v2, op), nil
+
+	case string:
+		v2 := strings.ReplaceAll(obj2Str, "'", "")
+		return compareString(v1, v2, op), nil
+
+	case bool:
+		v2, err := strconv.ParseBool(obj2Str)
+		if err != nil {
+			return false, err
+		}
+		return compareBool(v1, v2, op), nil
+
+	default:
+		// Fallback: compare string representations
+		v1Str := fmt.Sprintf("%v", obj1)
+		return compareString(v1Str, obj2Str, op), nil
 	}
-	if res.IsValue() == false || (res.Value.String() != "false" && res.Value.String() != "true") {
-		return false, fmt.Errorf("result should only be true or false")
+}
+
+func compareFloat64(a, b float64, op string) bool {
+	switch op {
+	case "<":
+		return a < b
+	case "<=":
+		return a <= b
+	case "==":
+		return a == b
+	case ">=":
+		return a >= b
+	case ">":
+		return a > b
+	case "!=":
+		return a != b
 	}
-	if res.Value.String() == "true" {
-		return true, nil
+	return false
+}
+
+func compareInt64(a, b int64, op string) bool {
+	switch op {
+	case "<":
+		return a < b
+	case "<=":
+		return a <= b
+	case "==":
+		return a == b
+	case ">=":
+		return a >= b
+	case ">":
+		return a > b
+	case "!=":
+		return a != b
 	}
-	return false, nil
+	return false
+}
+
+func compareString(a, b string, op string) bool {
+	switch op {
+	case "<":
+		return a < b
+	case "<=":
+		return a <= b
+	case "==":
+		return a == b
+	case ">=":
+		return a >= b
+	case ">":
+		return a > b
+	case "!=":
+		return a != b
+	}
+	return false
+}
+
+func compareBool(a, b bool, op string) bool {
+	switch op {
+	case "==":
+		return a == b
+	case "!=":
+		return a != b
+	}
+	return false
 }
