@@ -2,6 +2,7 @@ package jsonpath
 
 import (
 	"testing"
+	"time"
 )
 
 func TestCmpAny(t *testing.T) {
@@ -687,6 +688,48 @@ func TestMinNotNeg1(t *testing.T) {
 			result := minNotNeg1(tc.a, tc.bs...)
 			if result != tc.want {
 				t.Errorf("minNotNeg1(%d, %v) = %d; want %d", tc.a, tc.bs, result, tc.want)
+			}
+		})
+	}
+}
+
+func TestMalformedPathsDoNotHang(t *testing.T) {
+	// These malformed paths should not cause infinite loops
+	malformedPaths := []string{
+		"$[",              // unclosed bracket
+		"$.[",             // dot then unclosed bracket
+		"$.foo[",          // unclosed bracket after key
+		"$[bar",           // unclosed bracket with content
+		"$[[",             // nested unclosed brackets
+		"$[[]",            // partial nested brackets
+		"$.foo[0",         // unclosed array index
+		`$["key`,          // unclosed quoted key
+		"$...[",           // descent with unclosed bracket
+		"$[?(@.x",         // unclosed filter
+		"$[?(@.x > 5",     // unclosed filter condition
+		"$....",           // multiple dots
+		"$.[[[[",          // many unclosed brackets
+		"$.",              // trailing dot
+		"$..",             // double dot at end
+		"$...",            // triple dot
+		"$[]",             // empty brackets
+		"$[[]]",           // nested empty brackets
+	}
+
+	for _, path := range malformedPaths {
+		t.Run(path, func(t *testing.T) {
+			done := make(chan bool, 1)
+			go func() {
+				// Parse should complete (possibly with error) but not hang
+				_, _ = Parse(path)
+				done <- true
+			}()
+
+			select {
+			case <-done:
+				// Success - parsing completed
+			case <-time.After(100 * time.Millisecond):
+				t.Errorf("Parse(%q) appears to hang (timeout after 100ms)", path)
 			}
 		})
 	}
