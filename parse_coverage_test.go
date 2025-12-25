@@ -714,6 +714,9 @@ func TestMalformedPathsDoNotHang(t *testing.T) {
 		"$...",            // triple dot
 		"$[]",             // empty brackets
 		"$[[]]",           // nested empty brackets
+		"invalid[[[",      // no $ prefix, multiple unclosed brackets
+		"foo.bar[",        // no $ prefix, unclosed bracket
+		"test[0",          // no $ prefix, unclosed array index
 	}
 
 	for _, path := range malformedPaths {
