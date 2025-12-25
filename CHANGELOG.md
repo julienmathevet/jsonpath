@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Potential panic in `normalize`: added bounds check before accessing string index
 - Thread-safety: `WildCardFilterSelection.pathCache` now protected with mutex
 - Thread-safety: `getCachedPath` now returns errors and uses proper locking
+- Infinite loop: `normalize` no longer hangs on malformed paths with unclosed brackets
 
 ## [1.0.0] - Previous
 

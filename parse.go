@@ -458,6 +458,10 @@ func normalize(s string) string {
 		// Grab all the bracketed entries
 		for len(s) > 0 && s[0] == '[' {
 			n := strings.Index(s, "]")
+			if n == -1 {
+				// Malformed path: unclosed bracket, skip the rest
+				return b.String()
+			}
 			b.WriteString(s[0 : n+1])
 			s = s[n+1:]
 		}
@@ -493,6 +497,8 @@ func normalize(s string) string {
 
 		n := minNotNeg1(strings.Index(s, "["), strings.Index(s, "."))
 		if n == 0 {
+			// String starts with '[' or '.' - let the loop handlers above
+			// process it on the next iteration.
 			continue
 		}
 		if n != -1 {
