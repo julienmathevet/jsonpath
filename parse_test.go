@@ -166,16 +166,16 @@ func TestNormalize(t *testing.T) {
 	}
 	for i, test := range testcases {
 		// First let's run the normal test.
-		if ev = normalize(test.t); ev != test.e {
+		if ev, _ = normalize(test.t); ev != test.e {
 			t.Errorf("[%03d] Standard test:  Normalize(\"%v\") = \"%v\"; want \"%v\"", i, test.t, ev, test.e)
 		}
 		// Test that a normalized version is a noop.
-		if ev = normalize(test.e); ev != test.e {
+		if ev, _ = normalize(test.e); ev != test.e {
 			t.Errorf("[%03d] NOOP test:      Normalize(\"%v\") = \"%v\"; want \"%v\"", i, test.e, ev, test.e)
 		}
 		if !test.DontTestImplicate {
 			// Test that an implicate version works as well.
-			if ev = normalize(test.t[2:]); ev != test.e {
+			if ev, _ = normalize(test.t[2:]); ev != test.e {
 				t.Errorf("[%03d] Implicate test: Normalize(\"%v\") = \"%v\"; want \"%v\"", i, test.t[2:], ev, test.e)
 			}
 		}

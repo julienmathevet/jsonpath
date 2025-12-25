@@ -439,9 +439,9 @@ func minNotNeg1(a int, bs ...int) int {
 	return m
 }
 
-func normalize(s string) string {
+func normalize(s string) (string, error) {
 	if s == "" || s == "$." {
-		return "$"
+		return "$", nil
 	}
 
 	// Pre-allocate builder with estimated capacity
@@ -459,8 +459,8 @@ func normalize(s string) string {
 		for len(s) > 0 && s[0] == '[' {
 			n := strings.Index(s, "]")
 			if n == -1 {
-				// Malformed path: unclosed bracket, skip the rest
-				return b.String()
+				// Malformed path: unclosed bracket
+				return "", ErrSyntax
 			}
 			b.WriteString(s[0 : n+1])
 			s = s[n+1:]
@@ -513,7 +513,7 @@ func normalize(s string) string {
 			s = ""
 		}
 	}
-	return b.String()
+	return b.String(), nil
 }
 
 func getNode(s string) (node, string, error) {
@@ -584,7 +584,10 @@ func ParseNoCache(s string) (Applicator, error) {
 
 	var nn node
 	var err error
-	normalized := normalize(s)
+	normalized, err := normalize(s)
+	if err != nil {
+		return nil, err
+	}
 	rt := RootNode{}
 	// Remove the starting '$'
 	remaining := normalized[1:]

@@ -493,7 +493,11 @@ func TestNormalizeEdgeCases(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.input, func(t *testing.T) {
-			result := normalize(tc.input)
+			result, err := normalize(tc.input)
+			if err != nil {
+				t.Errorf("normalize(%q) returned error: %v", tc.input, err)
+				return
+			}
 			if result != tc.expected {
 				t.Errorf("normalize(%q) = %q; want %q", tc.input, result, tc.expected)
 			}
@@ -507,7 +511,7 @@ func TestParseErrors(t *testing.T) {
 		input   string
 		wantErr bool
 	}{
-		// Note: unclosed bracket like "$[store" causes infinite loop in normalize() - known bug
+		{name: "unclosed bracket", input: "$[store", wantErr: true},
 		{name: "invalid array index", input: "$[abc]", wantErr: true},
 		{name: "slice syntax not supported", input: "$[0:10:2]", wantErr: true},
 	}
@@ -693,8 +697,8 @@ func TestMinNotNeg1(t *testing.T) {
 	}
 }
 
-func TestMalformedPathsDoNotHang(t *testing.T) {
-	// These malformed paths should not cause infinite loops
+func TestMalformedPathsReturnError(t *testing.T) {
+	// These malformed paths with unclosed brackets should return ErrSyntax
 	malformedPaths := []string{
 		"$[",              // unclosed bracket
 		"$.[",             // dot then unclosed bracket
@@ -707,19 +711,37 @@ func TestMalformedPathsDoNotHang(t *testing.T) {
 		"$...[",           // descent with unclosed bracket
 		"$[?(@.x",         // unclosed filter
 		"$[?(@.x > 5",     // unclosed filter condition
-		"$....",           // multiple dots
 		"$.[[[[",          // many unclosed brackets
-		"$.",              // trailing dot
-		"$..",             // double dot at end
-		"$...",            // triple dot
-		"$[]",             // empty brackets
-		"$[[]]",           // nested empty brackets
 		"invalid[[[",      // no $ prefix, multiple unclosed brackets
 		"foo.bar[",        // no $ prefix, unclosed bracket
 		"test[0",          // no $ prefix, unclosed array index
 	}
 
 	for _, path := range malformedPaths {
+		t.Run(path, func(t *testing.T) {
+			_, err := Parse(path)
+			if err == nil {
+				t.Errorf("Parse(%q) should return an error for malformed path", path)
+			}
+			if err != nil && err != ErrSyntax {
+				t.Errorf("Parse(%q) returned error %v, expected ErrSyntax", path, err)
+			}
+		})
+	}
+}
+
+func TestEdgeCasePathsDoNotHang(t *testing.T) {
+	// These edge case paths should not hang (may or may not return errors)
+	edgeCasePaths := []string{
+		"$....",           // multiple dots
+		"$.",              // trailing dot
+		"$..",             // double dot at end
+		"$...",            // triple dot
+		"$[]",             // empty brackets
+		"$[[]]",           // nested empty brackets
+	}
+
+	for _, path := range edgeCasePaths {
 		t.Run(path, func(t *testing.T) {
 			done := make(chan bool, 1)
 			go func() {

@@ -67,7 +67,7 @@ func BenchmarkParseNoCache(b *testing.B) {
 func BenchmarkNormalize(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = normalize("$.store.book[0].title")
+		_, _ = normalize("$.store.book[0].title")
 	}
 }
 
