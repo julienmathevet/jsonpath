@@ -184,8 +184,10 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 		sort.Strings(keys)
 		for _, key := range keys {
 			rval, err := applyNext(w.NextNode, tv[key])
-			// Don't add anything that causes an error or returns nil.
-			if err == nil && rval != nil {
+			// Include nil values to maintain key-value correspondence with @ selector.
+			// This allows $.foo.@ and $.foo.* to return same-length arrays.
+			// Only skip on error, not on nil value.
+			if err == nil {
 				ret = flattenAppend(ret, rval)
 			}
 		}
@@ -194,8 +196,9 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 		var ret []interface{}
 		for _, val := range tv {
 			rval, err := applyNext(w.NextNode, val)
-			// Don't add anything that causes an error or returns nil.
-			if err == nil && rval != nil {
+			// Include nil values to maintain array position correspondence.
+			// Only skip on error, not on nil value.
+			if err == nil {
 				ret = flattenAppend(ret, rval)
 			}
 		}

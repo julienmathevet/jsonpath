@@ -190,9 +190,19 @@ func TestWildCardSelectionApply(t *testing.T) {
 			want:  []interface{}{1, 2},
 		},
 		{
+			name:  "map with nil values preserves length",
+			input: map[string]interface{}{"a": 1, "b": nil, "c": 3},
+			want:  []interface{}{1, nil, 3},
+		},
+		{
 			name:  "array input",
 			input: []interface{}{1, 2, 3},
 			want:  []interface{}{1, 2, 3},
+		},
+		{
+			name:  "array with nil values preserves length",
+			input: []interface{}{1, nil, 3},
+			want:  []interface{}{1, nil, 3},
 		},
 		{
 			name:  "scalar string",
@@ -227,6 +237,51 @@ func TestWildCardSelectionApply(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestWildCardKeyValueCorrespondence ensures that @ and * selectors return
+// same-length arrays, which is critical for dynamic key-value mapping.
+func TestWildCardKeyValueCorrespondence(t *testing.T) {
+	// Simulate a kpis object with some null values
+	kpis := map[string]interface{}{
+		"testScore":       85.5,
+		"testStatus":      nil, // null value
+		"testDescription": nil, // null value
+		"videoQuality":    "HD",
+	}
+
+	keySelector := &WildCardKeySelection{}
+	valueSelector := &WildCardSelection{}
+
+	keys, err := keySelector.Apply(kpis)
+	if err != nil {
+		t.Fatalf("WildCardKeySelection.Apply() error: %v", err)
+	}
+
+	values, err := valueSelector.Apply(kpis)
+	if err != nil {
+		t.Fatalf("WildCardSelection.Apply() error: %v", err)
+	}
+
+	keysSlice := keys.([]interface{})
+	valuesSlice := values.([]interface{})
+
+	if len(keysSlice) != len(valuesSlice) {
+		t.Errorf("@ and * selectors return different lengths: keys=%d, values=%d",
+			len(keysSlice), len(valuesSlice))
+	}
+
+	// Verify each key-value pair matches
+	for i, key := range keysSlice {
+		keyStr := key.(string)
+		expectedValue := kpis[keyStr]
+		actualValue := valuesSlice[i]
+
+		if expectedValue != actualValue {
+			t.Errorf("key-value mismatch at index %d: key=%s, expected=%v, got=%v",
+				i, keyStr, expectedValue, actualValue)
+		}
 	}
 }
 
