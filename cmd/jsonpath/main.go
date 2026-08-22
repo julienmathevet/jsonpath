@@ -18,9 +18,9 @@ var marshalOpts = json.JoinOptions(
 	json.Deterministic(true),
 )
 
-func applyFilter(filter jsonpath.Applicator, data []byte) (interface{}, error) {
+func applyFilter(filter jsonpath.Applicator, data []byte) (any, error) {
 
-	var jsonbody = make(map[string]interface{})
+	var jsonbody = make(map[string]any)
 	err := json.Unmarshal(data, &jsonbody)
 	if err != nil {
 		return nil, err

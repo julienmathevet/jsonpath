@@ -20,7 +20,7 @@ import (
     "github.com/julienmathevet/jsonpath"
 )
 
-var json_data interface{}
+var json_data any
 json.Unmarshal([]byte(data), &json_data)
 
 // Parse once, apply multiple times for best performance

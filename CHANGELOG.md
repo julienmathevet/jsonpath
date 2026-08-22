@@ -16,12 +16,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Breaking**: Minimum Go version is now 1.27 (was 1.25), required by `encoding/json/v2`
 - Migrated from `encoding/json` to `encoding/json/v2` in the CLI and tests. The library
   itself is JSON-decoder agnostic: it operates on already-decoded
-  `map[string]interface{}` / `[]interface{}` values, so callers may use either package.
+  `map[string]any` / `[]any` values, so callers may use either package.
 - **Performance**: decoding with `encoding/json/v2` is ~2x faster than v1 (`Unmarshal`
-  into `map[string]interface{}`: 4.01µs -> 2.00µs on the readme's store document,
+  into `map[string]any`: 4.01µs -> 2.00µs on the readme's store document,
   49.5µs -> 23.7µs on a 100-element array), with ~20-27% fewer allocations
 - **Performance**: indented marshaling in the CLI is ~10-14% faster with ~30% less
   memory than `json.MarshalIndent`
+- Modernized for Go 1.27 via `go fix`: `interface{}` -> `any` throughout, and
+  `for i := 0; i < n; i++` -> `for range n` where applicable. `any` is an alias
+  for `interface{}`, so the exported API is unchanged and callers need no edits.
+- Benchmarks now use `b.Loop()` instead of `b.N` loops, dropping the redundant
+  `b.ResetTimer()` calls. Measured within noise of the previous numbers.
+- Replaced deprecated `reflect.Ptr` with `reflect.Pointer` in `isNil`
 - **Performance**: Parse with cache is 32x faster (5.4 ns vs 173.5 ns)
 - **Performance**: Simple dot-notation paths (`$.foo.bar`) are 3.3x faster with dedicated fast path
 - **Performance**: Filter operations are now up to 10x faster

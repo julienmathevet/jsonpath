@@ -69,7 +69,7 @@ BenchmarkApplyFilterLargeArray-14    	    21962	     55165 ns/op	   44497 B/op	 
 ## encoding/json v2 Migration (Go 1.27)
 
 The library core never calls `encoding/json` - it consumes already-decoded
-`map[string]interface{}` / `[]interface{}` values. So the `Parse`/`Apply`
+`map[string]any` / `[]any` values. So the `Parse`/`Apply`
 benchmarks above are **unaffected** by the v1 -> v2 switch. Re-running the
 unchanged suite back-to-back on the same binary produced a +2.18% geomean
 swing, which is the machine noise floor here; any apparent movement in those
@@ -100,6 +100,16 @@ to the v1 output:
 |---------|----|----|-------|
 | store doc | 2.360 µs / 1.431 KiB / 9 allocs | 2.024 µs / 985 B / 8 allocs | -14% time, -33% bytes |
 | 100-element array | 26.40 µs / 13.33 KiB / 6 allocs | 23.80 µs / 9.325 KiB / 5 allocs | -10% time, -30% bytes |
+
+## Benchmark Loop Style
+
+The suite uses `b.Loop()` (Go 1.24+) rather than `for i := 0; i < b.N; i++`.
+`b.Loop()` keeps loop values alive, so it can defeat dead-code elimination that
+a `b.N` loop would allow, and it excludes setup from the measured time (making
+the previous `b.ResetTimer()` calls redundant). Converting the existing
+benchmarks moved every number by at most 6%, i.e. within this machine's noise
+floor, so the tables above remain representative rather than having been
+inflated by eliminated work.
 
 ## Test Coverage
 

@@ -9,8 +9,8 @@ import (
 
 func TestParseWildcardCondition(t *testing.T) {
 	w := WildCardFilterSelection{Key: "@.metadata.project_name =~ 'A.*'"}
-	r := map[string]interface{}{
-		"metadata": map[string]interface{}{
+	r := map[string]any{
+		"metadata": map[string]any{
 			"project_name": "AProject",
 		},
 	}
@@ -25,8 +25,8 @@ func TestParseWildcardCondition(t *testing.T) {
 
 func TestParseWildcardConditionDoesNotMatch(t *testing.T) {
 	w := WildCardFilterSelection{Key: "@.metadata.project_name =~ 'A.*'"}
-	r := map[string]interface{}{
-		"metadata": map[string]interface{}{
+	r := map[string]any{
+		"metadata": map[string]any{
 			"project_name": "BProject",
 		},
 	}
@@ -41,8 +41,8 @@ func TestParseWildcardConditionDoesNotMatch(t *testing.T) {
 
 func TestParseWildcardConditionDifferentOf(t *testing.T) {
 	w := WildCardFilterSelection{Key: "@.metadata.project_name !~ 'A.*'"}
-	r := map[string]interface{}{
-		"metadata": map[string]interface{}{
+	r := map[string]any{
+		"metadata": map[string]any{
 			"project_name": "BProject",
 		},
 	}
@@ -58,8 +58,8 @@ func TestParseWildcardConditionDifferentOf(t *testing.T) {
 func TestParseWildcardConditionWithBackslash(t *testing.T) {
 	w := WildCardFilterSelection{Key: "@.context.releaseVersion != ''"}
 
-	r := map[string]interface{}{
-		"context": map[string]interface{}{
+	r := map[string]any{
+		"context": map[string]any{
 			"releaseVersion": "FCL-11 \\ \\ QAMLess",
 		},
 	}
@@ -75,8 +75,8 @@ func TestParseWildcardConditionWithBackslash(t *testing.T) {
 func TestParseWildcardConditionWithDoubleQuotes(t *testing.T) {
 	w := WildCardFilterSelection{Key: "@.context.releaseVersion != ''"}
 
-	r := map[string]interface{}{
-		"context": map[string]interface{}{
+	r := map[string]any{
+		"context": map[string]any{
 			"releaseVersion": "FCL-11 \" \" QAMLess",
 		},
 	}
@@ -91,8 +91,8 @@ func TestParseWildcardConditionWithDoubleQuotes(t *testing.T) {
 
 func TestAdvancedParseWildcardCondition(t *testing.T) {
 	w := WildCardFilterSelection{Key: "@.context.releaseVersion == 'FCL-11 \" \" \\ \\ QAMLess'"}
-	r := map[string]interface{}{
-		"context": map[string]interface{}{
+	r := map[string]any{
+		"context": map[string]any{
 			"releaseVersion": "FCL-11 \" \" \\ \\ QAMLess",
 		},
 	}
@@ -284,7 +284,7 @@ func TestGetNode(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
-	var books = make(map[string]interface{})
+	var books = make(map[string]any)
 	err := json.Unmarshal(
 		[]byte(`{ "store" :
   { "book" :
@@ -328,38 +328,38 @@ func TestParse(t *testing.T) {
 
 	testcases := []struct {
 		t        string
-		expected interface{}
+		expected any
 		perr     error
 		err      error
 	}{
 		{
 			t:        "$..author",
-			expected: []interface{}{"Nigel Rees", "Evelyn Waugh", "Herman Melville", "J. R. R. Tolkien"},
+			expected: []any{"Nigel Rees", "Evelyn Waugh", "Herman Melville", "J. R. R. Tolkien"},
 		},
 		{
 			t: "store.bicycle",
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"color": "red",
 				"price": 19.95,
 			},
 		},
 		{
 			t: "store.bicycle.*",
-			expected: []interface{}{
+			expected: []any{
 				"red",
 				19.95,
 			},
 		},
 		{
 			t: "store.bicycle.@",
-			expected: []interface{}{
+			expected: []any{
 				"color",
 				"price",
 			},
 		},
 		{
 			t: "store.book[0]",
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"category":     "reference",
 				"category.sub": "quotes",
 				"author":       "Nigel Rees",
@@ -369,7 +369,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			t: "store.book[0]*",
-			expected: []interface{}{
+			expected: []any{
 				"Nigel Rees",
 				"reference",
 				"quotes",
@@ -379,37 +379,37 @@ func TestParse(t *testing.T) {
 		},
 		{
 			t: "store.book..isbn",
-			expected: []interface{}{
+			expected: []any{
 				"0-553-21311-3",
 				"0-395-19395-8",
 			},
 		},
 		{
 			t: "store..isbn",
-			expected: []interface{}{
+			expected: []any{
 				"0-553-21311-3",
 				"0-395-19395-8",
 			},
 		},
 		{
 			t: "store..[\"category.sub\"]",
-			expected: []interface{}{
+			expected: []any{
 				"quotes",
 			},
 		},
 		{
 			t:        "..author..",
-			expected: []interface{}{"Nigel Rees", "Evelyn Waugh", "Herman Melville", "J. R. R. Tolkien"},
+			expected: []any{"Nigel Rees", "Evelyn Waugh", "Herman Melville", "J. R. R. Tolkien"},
 		},
 		{
 			t: "store.book[?(@.price < 10)]",
-			expected: []interface{}{map[string]interface{}{
+			expected: []any{map[string]any{
 				"category":     "reference",
 				"category.sub": "quotes",
 				"author":       "Nigel Rees",
 				"title":        "Saying of the Century",
 				"price":        8.95,
-			}, map[string]interface{}{
+			}, map[string]any{
 				"category": "fiction",
 				"author":   "Herman Melville",
 				"title":    "Moby Dick",
@@ -420,7 +420,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			t: `store.book[?(@.category == reference)]`,
-			expected: []interface{}{map[string]interface{}{
+			expected: []any{map[string]any{
 				"category":     "reference",
 				"category.sub": "quotes",
 				"author":       "Nigel Rees",
@@ -431,7 +431,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			t: `store.book[?(@.discount)]`,
-			expected: []interface{}{map[string]interface{}{
+			expected: []any{map[string]any{
 				"category": "fiction",
 				"author":   "J. R. R. Tolkien",
 				"title":    "The Lord of the Rings",
@@ -443,7 +443,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			t: `store.book[?(@.author == 'Nigel Rees')]`,
-			expected: []interface{}{map[string]interface{}{
+			expected: []any{map[string]any{
 				"category":     "reference",
 				"category.sub": "quotes",
 				"author":       "Nigel Rees",

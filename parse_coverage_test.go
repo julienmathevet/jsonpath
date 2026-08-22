@@ -8,8 +8,8 @@ import (
 func TestCmpAny(t *testing.T) {
 	testcases := []struct {
 		name     string
-		obj1     interface{}
-		obj2     interface{}
+		obj1     any
+		obj2     any
 		op       string
 		expected bool
 		wantErr  bool
@@ -65,8 +65,8 @@ func TestCmpAny(t *testing.T) {
 func TestCmpWildcard(t *testing.T) {
 	testcases := []struct {
 		name     string
-		obj1     interface{}
-		obj2     interface{}
+		obj1     any
+		obj2     any
 		op       string
 		expected bool
 		wantErr  bool
@@ -115,38 +115,38 @@ func TestArraySelectionApply(t *testing.T) {
 	testcases := []struct {
 		name    string
 		key     int
-		input   interface{}
-		want    interface{}
+		input   any
+		want    any
 		wantErr error
 	}{
 		{
 			name:  "valid index",
 			key:   1,
-			input: []interface{}{"a", "b", "c"},
+			input: []any{"a", "b", "c"},
 			want:  "b",
 		},
 		{
 			name:  "first element",
 			key:   0,
-			input: []interface{}{"first", "second"},
+			input: []any{"first", "second"},
 			want:  "first",
 		},
 		{
 			name:    "negative index",
 			key:     -1,
-			input:   []interface{}{"a", "b", "c"},
+			input:   []any{"a", "b", "c"},
 			wantErr: IndexOutOfBounds,
 		},
 		{
 			name:    "out of bounds",
 			key:     10,
-			input:   []interface{}{"a", "b"},
+			input:   []any{"a", "b"},
 			wantErr: IndexOutOfBounds,
 		},
 		{
 			name:    "not an array",
 			key:     0,
-			input:   map[string]interface{}{"key": "value"},
+			input:   map[string]any{"key": "value"},
 			wantErr: ArrayTypeError,
 		},
 		{
@@ -181,28 +181,28 @@ func TestArraySelectionApply(t *testing.T) {
 func TestWildCardSelectionApply(t *testing.T) {
 	testcases := []struct {
 		name  string
-		input interface{}
-		want  interface{}
+		input any
+		want  any
 	}{
 		{
 			name:  "map input",
-			input: map[string]interface{}{"a": 1, "b": 2},
-			want:  []interface{}{1, 2},
+			input: map[string]any{"a": 1, "b": 2},
+			want:  []any{1, 2},
 		},
 		{
 			name:  "map with nil values preserves length",
-			input: map[string]interface{}{"a": 1, "b": nil, "c": 3},
-			want:  []interface{}{1, nil, 3},
+			input: map[string]any{"a": 1, "b": nil, "c": 3},
+			want:  []any{1, nil, 3},
 		},
 		{
 			name:  "array input",
-			input: []interface{}{1, 2, 3},
-			want:  []interface{}{1, 2, 3},
+			input: []any{1, 2, 3},
+			want:  []any{1, 2, 3},
 		},
 		{
 			name:  "array with nil values preserves length",
-			input: []interface{}{1, nil, 3},
-			want:  []interface{}{1, nil, 3},
+			input: []any{1, nil, 3},
+			want:  []any{1, nil, 3},
 		},
 		{
 			name:  "scalar string",
@@ -230,8 +230,8 @@ func TestWildCardSelectionApply(t *testing.T) {
 				return
 			}
 			// For slices, check length and values
-			if resultSlice, ok := result.([]interface{}); ok {
-				wantSlice, _ := tc.want.([]interface{})
+			if resultSlice, ok := result.([]any); ok {
+				wantSlice, _ := tc.want.([]any)
 				if len(resultSlice) != len(wantSlice) {
 					t.Errorf("Apply() = %v; want %v", result, tc.want)
 				}
@@ -244,7 +244,7 @@ func TestWildCardSelectionApply(t *testing.T) {
 // same-length arrays, which is critical for dynamic key-value mapping.
 func TestWildCardKeyValueCorrespondence(t *testing.T) {
 	// Simulate a kpis object with some null values
-	kpis := map[string]interface{}{
+	kpis := map[string]any{
 		"testScore":       85.5,
 		"testStatus":      nil, // null value
 		"testDescription": nil, // null value
@@ -264,8 +264,8 @@ func TestWildCardKeyValueCorrespondence(t *testing.T) {
 		t.Fatalf("WildCardSelection.Apply() error: %v", err)
 	}
 
-	keysSlice := keys.([]interface{})
-	valuesSlice := values.([]interface{})
+	keysSlice := keys.([]any)
+	valuesSlice := values.([]any)
 
 	if len(keysSlice) != len(valuesSlice) {
 		t.Errorf("@ and * selectors return different lengths: keys=%d, values=%d",
@@ -289,26 +289,26 @@ func TestWildCardFilterSelectionApply(t *testing.T) {
 	testcases := []struct {
 		name    string
 		key     string
-		input   interface{}
+		input   any
 		wantLen int
 		wantErr bool
 	}{
 		{
 			name:    "filter array",
 			key:     "@.price < 10",
-			input:   []interface{}{map[string]interface{}{"price": 5.0}, map[string]interface{}{"price": 15.0}},
+			input:   []any{map[string]any{"price": 5.0}, map[string]any{"price": 15.0}},
 			wantLen: 1,
 		},
 		{
 			name:    "filter single map",
 			key:     "@.price < 10",
-			input:   map[string]interface{}{"price": 5.0},
+			input:   map[string]any{"price": 5.0},
 			wantLen: 1,
 		},
 		{
 			name:    "filter single map no match",
 			key:     "@.price < 10",
-			input:   map[string]interface{}{"price": 50.0},
+			input:   map[string]any{"price": 50.0},
 			wantLen: 0,
 		},
 		{
@@ -339,7 +339,7 @@ func TestWildCardFilterSelectionApply(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
-			resultSlice, ok := result.([]interface{})
+			resultSlice, ok := result.([]any)
 			if !ok {
 				t.Errorf("expected slice result, got %T", result)
 				return
@@ -355,7 +355,7 @@ func TestWildCardFilterSelectionFilterErrors(t *testing.T) {
 	testcases := []struct {
 		name    string
 		key     string
-		input   interface{}
+		input   any
 		wantErr bool
 	}{
 		{
@@ -367,7 +367,7 @@ func TestWildCardFilterSelectionFilterErrors(t *testing.T) {
 		{
 			name:    "empty key",
 			key:     "",
-			input:   map[string]interface{}{"price": 5.0},
+			input:   map[string]any{"price": 5.0},
 			wantErr: true,
 		},
 	}
@@ -395,26 +395,26 @@ func TestMapSelectionApply(t *testing.T) {
 	testcases := []struct {
 		name    string
 		key     string
-		input   interface{}
-		want    interface{}
+		input   any
+		want    any
 		wantErr error
 	}{
 		{
 			name:  "valid key",
 			key:   "name",
-			input: map[string]interface{}{"name": "test", "value": 123},
+			input: map[string]any{"name": "test", "value": 123},
 			want:  "test",
 		},
 		{
 			name:    "key not found",
 			key:     "missing",
-			input:   map[string]interface{}{"name": "test"},
+			input:   map[string]any{"name": "test"},
 			wantErr: NotFound,
 		},
 		{
 			name:    "not a map",
 			key:     "name",
-			input:   []interface{}{1, 2, 3},
+			input:   []any{1, 2, 3},
 			wantErr: MapTypeError,
 		},
 		{
@@ -449,17 +449,17 @@ func TestMapSelectionApply(t *testing.T) {
 func TestIsNil(t *testing.T) {
 	testcases := []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected bool
 	}{
 		{name: "nil", input: nil, expected: true},
-		{name: "nil slice", input: ([]interface{})(nil), expected: true},
-		{name: "nil map", input: (map[string]interface{})(nil), expected: true},
+		{name: "nil slice", input: ([]any)(nil), expected: true},
+		{name: "nil map", input: (map[string]any)(nil), expected: true},
 		{name: "nil chan", input: (chan int)(nil), expected: true},
 		{name: "nil func", input: (func())(nil), expected: true},
 		{name: "nil pointer", input: (*int)(nil), expected: true},
-		{name: "empty slice", input: []interface{}{}, expected: false},
-		{name: "empty map", input: map[string]interface{}{}, expected: false},
+		{name: "empty slice", input: []any{}, expected: false},
+		{name: "empty map", input: map[string]any{}, expected: false},
 		{name: "string", input: "hello", expected: false},
 		{name: "int", input: 42, expected: false},
 		{name: "zero int", input: 0, expected: false},
@@ -480,25 +480,25 @@ func TestIsNil(t *testing.T) {
 func TestDescentSelectionApply(t *testing.T) {
 	testcases := []struct {
 		name    string
-		input   interface{}
+		input   any
 		nextKey string
 		wantLen int
 	}{
 		{
 			name: "descent into nested map",
-			input: map[string]interface{}{
-				"a": map[string]interface{}{"target": 1},
-				"b": map[string]interface{}{"target": 2},
+			input: map[string]any{
+				"a": map[string]any{"target": 1},
+				"b": map[string]any{"target": 2},
 			},
 			nextKey: "target",
 			wantLen: 2,
 		},
 		{
 			name: "descent into array",
-			input: []interface{}{
-				map[string]interface{}{"target": 1},
-				map[string]interface{}{"target": 2},
-				map[string]interface{}{"other": 3},
+			input: []any{
+				map[string]any{"target": 1},
+				map[string]any{"target": 2},
+				map[string]any{"other": 3},
 			},
 			nextKey: "target",
 			wantLen: 2,
@@ -520,7 +520,7 @@ func TestDescentSelectionApply(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
-			resultSlice, ok := result.([]interface{})
+			resultSlice, ok := result.([]any)
 			if !ok {
 				t.Errorf("expected slice result, got %T", result)
 				return
@@ -584,13 +584,13 @@ func TestParseErrors(t *testing.T) {
 func TestWildCardKeySelectionApply(t *testing.T) {
 	testcases := []struct {
 		name  string
-		input interface{}
-		want  []interface{}
+		input any
+		want  []any
 	}{
 		{
 			name:  "map input returns keys",
-			input: map[string]interface{}{"a": 1, "b": 2},
-			want:  []interface{}{"a", "b"},
+			input: map[string]any{"a": 1, "b": 2},
+			want:  []any{"a", "b"},
 		},
 		{
 			name:  "non-map returns input",
@@ -613,7 +613,7 @@ func TestWildCardKeySelectionApply(t *testing.T) {
 				}
 				return
 			}
-			resultSlice, ok := result.([]interface{})
+			resultSlice, ok := result.([]any)
 			if !ok {
 				t.Errorf("expected slice result, got %T", result)
 				return
@@ -627,13 +627,13 @@ func TestWildCardKeySelectionApply(t *testing.T) {
 
 func TestRootNodeApply(t *testing.T) {
 	r := &RootNode{}
-	input := map[string]interface{}{"key": "value"}
+	input := map[string]any{"key": "value"}
 
 	result, err := r.Apply(input)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	resultMap, ok := result.(map[string]interface{})
+	resultMap, ok := result.(map[string]any)
 	if !ok {
 		t.Errorf("expected map result, got %T", result)
 		return
@@ -646,32 +646,32 @@ func TestRootNodeApply(t *testing.T) {
 func TestFlattenAppend(t *testing.T) {
 	testcases := []struct {
 		name   string
-		src    []interface{}
-		values []interface{}
+		src    []any
+		values []any
 		want   int
 	}{
 		{
 			name:   "simple append",
-			src:    []interface{}{1, 2},
-			values: []interface{}{3, 4},
+			src:    []any{1, 2},
+			values: []any{3, 4},
 			want:   4,
 		},
 		{
 			name:   "nested array flatten",
-			src:    []interface{}{1},
-			values: []interface{}{[]interface{}{2, 3}},
+			src:    []any{1},
+			values: []any{[]any{2, 3}},
 			want:   3,
 		},
 		{
 			name:   "empty nested array",
-			src:    []interface{}{1},
-			values: []interface{}{[]interface{}{}},
+			src:    []any{1},
+			values: []any{[]any{}},
 			want:   1,
 		},
 		{
 			name:   "deeply nested",
-			src:    []interface{}{},
-			values: []interface{}{[]interface{}{[]interface{}{1, 2}}},
+			src:    []any{},
+			values: []any{[]any{[]any{1, 2}}},
 			want:   2,
 		},
 	}
@@ -755,21 +755,21 @@ func TestMinNotNeg1(t *testing.T) {
 func TestMalformedPathsReturnError(t *testing.T) {
 	// These malformed paths with unclosed brackets should return ErrSyntax
 	malformedPaths := []string{
-		"$[",              // unclosed bracket
-		"$.[",             // dot then unclosed bracket
-		"$.foo[",          // unclosed bracket after key
-		"$[bar",           // unclosed bracket with content
-		"$[[",             // nested unclosed brackets
-		"$[[]",            // partial nested brackets
-		"$.foo[0",         // unclosed array index
-		`$["key`,          // unclosed quoted key
-		"$...[",           // descent with unclosed bracket
-		"$[?(@.x",         // unclosed filter
-		"$[?(@.x > 5",     // unclosed filter condition
-		"$.[[[[",          // many unclosed brackets
-		"invalid[[[",      // no $ prefix, multiple unclosed brackets
-		"foo.bar[",        // no $ prefix, unclosed bracket
-		"test[0",          // no $ prefix, unclosed array index
+		"$[",          // unclosed bracket
+		"$.[",         // dot then unclosed bracket
+		"$.foo[",      // unclosed bracket after key
+		"$[bar",       // unclosed bracket with content
+		"$[[",         // nested unclosed brackets
+		"$[[]",        // partial nested brackets
+		"$.foo[0",     // unclosed array index
+		`$["key`,      // unclosed quoted key
+		"$...[",       // descent with unclosed bracket
+		"$[?(@.x",     // unclosed filter
+		"$[?(@.x > 5", // unclosed filter condition
+		"$.[[[[",      // many unclosed brackets
+		"invalid[[[",  // no $ prefix, multiple unclosed brackets
+		"foo.bar[",    // no $ prefix, unclosed bracket
+		"test[0",      // no $ prefix, unclosed array index
 	}
 
 	for _, path := range malformedPaths {
@@ -788,12 +788,12 @@ func TestMalformedPathsReturnError(t *testing.T) {
 func TestEdgeCasePathsDoNotHang(t *testing.T) {
 	// These edge case paths should not hang (may or may not return errors)
 	edgeCasePaths := []string{
-		"$....",           // multiple dots
-		"$.",              // trailing dot
-		"$..",             // double dot at end
-		"$...",            // triple dot
-		"$[]",             // empty brackets
-		"$[[]]",           // nested empty brackets
+		"$....", // multiple dots
+		"$.",    // trailing dot
+		"$..",   // double dot at end
+		"$...",  // triple dot
+		"$[]",   // empty brackets
+		"$[[]]", // nested empty brackets
 	}
 
 	for _, path := range edgeCasePaths {

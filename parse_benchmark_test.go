@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-var benchmarkData map[string]interface{}
+var benchmarkData map[string]any
 
 func init() {
 	err := json.Unmarshal([]byte(`{
@@ -45,7 +45,7 @@ var benchmarkJSON = []byte(`{
 func BenchmarkUnmarshal(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		var v map[string]interface{}
+		var v map[string]any
 		if err := json.Unmarshal(benchmarkJSON, &v); err != nil {
 			b.Fatal(err)
 		}
@@ -59,7 +59,7 @@ func BenchmarkUnmarshalThenApply(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
-		var v map[string]interface{}
+		var v map[string]any
 		if err := json.Unmarshal(benchmarkJSON, &v); err != nil {
 			b.Fatal(err)
 		}
@@ -71,14 +71,14 @@ func BenchmarkUnmarshalThenApply(b *testing.B) {
 
 func BenchmarkParse(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = Parse("$.store.book[0].title")
 	}
 }
 
 func BenchmarkParseSimplePath(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = Parse("$.store.bicycle.color")
 	}
 }
@@ -87,15 +87,14 @@ func BenchmarkParseCached(b *testing.B) {
 	// Pre-warm the cache
 	_, _ = Parse("$.store.book.title")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = Parse("$.store.book.title")
 	}
 }
 
 func BenchmarkParseSimplePathUncached(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// Use unique paths to avoid cache hits
 		_ = parseSimpleDotPath("$.store.bicycle.color")
 	}
@@ -103,14 +102,14 @@ func BenchmarkParseSimplePathUncached(b *testing.B) {
 
 func BenchmarkParseNoCache(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = ParseNoCache("$.store.bicycle.color")
 	}
 }
 
 func BenchmarkNormalize(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = normalize("$.store.book[0].title")
 	}
 }
@@ -118,8 +117,7 @@ func BenchmarkNormalize(b *testing.B) {
 func BenchmarkApplySimple(b *testing.B) {
 	a, _ := Parse("$.store.bicycle.color")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = a.Apply(benchmarkData)
 	}
 }
@@ -127,8 +125,7 @@ func BenchmarkApplySimple(b *testing.B) {
 func BenchmarkApplyArrayIndex(b *testing.B) {
 	a, _ := Parse("$.store.book[0].title")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = a.Apply(benchmarkData)
 	}
 }
@@ -136,8 +133,7 @@ func BenchmarkApplyArrayIndex(b *testing.B) {
 func BenchmarkApplyWildcard(b *testing.B) {
 	a, _ := Parse("$.store.book[*].author")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = a.Apply(benchmarkData)
 	}
 }
@@ -145,8 +141,7 @@ func BenchmarkApplyWildcard(b *testing.B) {
 func BenchmarkApplyDescent(b *testing.B) {
 	a, _ := Parse("$..author")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = a.Apply(benchmarkData)
 	}
 }
@@ -154,8 +149,7 @@ func BenchmarkApplyDescent(b *testing.B) {
 func BenchmarkApplyFilterNumeric(b *testing.B) {
 	a, _ := Parse("$.store.book[?(@.price < 10)]")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = a.Apply(benchmarkData)
 	}
 }
@@ -163,8 +157,7 @@ func BenchmarkApplyFilterNumeric(b *testing.B) {
 func BenchmarkApplyFilterString(b *testing.B) {
 	a, _ := Parse("$.store.book[?(@.category == fiction)]")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = a.Apply(benchmarkData)
 	}
 }
@@ -172,22 +165,21 @@ func BenchmarkApplyFilterString(b *testing.B) {
 func BenchmarkApplyFilterRegex(b *testing.B) {
 	a, _ := Parse("$.store.book[?(@.author =~ 'J.*')]")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = a.Apply(benchmarkData)
 	}
 }
 
 func BenchmarkCmpAny(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = cmp_any(8.95, "10", "<")
 	}
 }
 
 func BenchmarkCmpWildcard(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = cmp_wildcard("J. R. R. Tolkien", "J.*", "=~")
 	}
 }
@@ -195,10 +187,10 @@ func BenchmarkCmpWildcard(b *testing.B) {
 // Benchmark with larger dataset to show filter performance impact
 func BenchmarkApplyFilterLargeArray(b *testing.B) {
 	// Create a large array of items
-	largeData := make(map[string]interface{})
-	items := make([]interface{}, 100)
-	for i := 0; i < 100; i++ {
-		items[i] = map[string]interface{}{
+	largeData := make(map[string]any)
+	items := make([]any, 100)
+	for i := range 100 {
+		items[i] = map[string]any{
 			"id":    i,
 			"price": float64(i * 10),
 			"name":  "item",
@@ -208,8 +200,7 @@ func BenchmarkApplyFilterLargeArray(b *testing.B) {
 
 	a, _ := Parse("$.items[?(@.price < 500)]")
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = a.Apply(largeData)
 	}
 }

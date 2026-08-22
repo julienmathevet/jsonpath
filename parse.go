@@ -13,7 +13,7 @@ import (
 )
 
 type Applicator interface {
-	Apply(v interface{}) (interface{}, error)
+	Apply(v any) (any, error)
 }
 
 type node interface {
@@ -99,7 +99,7 @@ func ParseCacheSize() int {
 	return len(parseCache)
 }
 
-func applyNext(nn node, v interface{}) (interface{}, error) {
+func applyNext(nn node, v any) (any, error) {
 	if nn == nil {
 		return v, nil
 	}
@@ -123,12 +123,12 @@ func (r *RootNode) SetNext(n node) {
 // to the provided value, returning the filtered result.
 // It is expected that the node will call its NextNode's Apply method as
 // needed by the rules of the Node.
-func (r *RootNode) Apply(v interface{}) (interface{}, error) {
+func (r *RootNode) Apply(v any) (any, error) {
 	return applyNext(r.NextNode, v)
 }
 
 // MapSelection is the basic filter for a Map type key. It will look at the
-// incoming v and try to turn it into a map[string]interface{} value. If it
+// incoming v and try to turn it into a map[string]any value. If it
 // succeeds it will then apply the NextNode to that interface value, or it
 // will return the value if it has no NextNode.
 type MapSelection struct {
@@ -136,8 +136,8 @@ type MapSelection struct {
 	RootNode
 }
 
-func (m *MapSelection) Apply(v interface{}) (interface{}, error) {
-	mv, ok := v.(map[string]interface{})
+func (m *MapSelection) Apply(v any) (any, error) {
+	mv, ok := v.(map[string]any)
 	if !ok {
 		return v, MapTypeError
 	}
@@ -154,8 +154,8 @@ type ArraySelection struct {
 	RootNode
 }
 
-func (a *ArraySelection) Apply(v interface{}) (interface{}, error) {
-	arv, ok := v.([]interface{})
+func (a *ArraySelection) Apply(v any) (any, error) {
+	arv, ok := v.([]any)
 	if !ok {
 		return v, ArrayTypeError
 	}
@@ -173,10 +173,10 @@ type WildCardSelection struct {
 	RootNode
 }
 
-func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
+func (w *WildCardSelection) Apply(v any) (any, error) {
 	switch tv := v.(type) {
-	case map[string]interface{}:
-		var ret []interface{}
+	case map[string]any:
+		var ret []any
 		var keys []string
 		for key := range tv {
 			keys = append(keys, key)
@@ -192,8 +192,8 @@ func (w *WildCardSelection) Apply(v interface{}) (interface{}, error) {
 			}
 		}
 		return ret, nil
-	case []interface{}:
-		var ret []interface{}
+	case []any:
+		var ret []any
 		for _, val := range tv {
 			rval, err := applyNext(w.NextNode, val)
 			// Include nil values to maintain array position correspondence.
@@ -213,10 +213,10 @@ type WildCardKeySelection struct {
 	RootNode
 }
 
-func (w *WildCardKeySelection) Apply(v interface{}) (interface{}, error) {
+func (w *WildCardKeySelection) Apply(v any) (any, error) {
 	switch tv := v.(type) {
-	case map[string]interface{}:
-		var ret []interface{}
+	case map[string]any:
+		var ret []any
 		var keys []string
 		for key := range tv {
 			keys = append(keys, key)
@@ -244,16 +244,16 @@ type WildCardFilterSelection struct {
 	pathCacheMu sync.RWMutex
 }
 
-func (w *WildCardFilterSelection) Apply(v interface{}) (interface{}, error) {
-	var ret []interface{}
+func (w *WildCardFilterSelection) Apply(v any) (any, error) {
+	var ret []any
 
 	switch arv := v.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		rval, err := w.filter(arv)
 		if err == nil && rval != nil {
 			ret = append(ret, rval)
 		}
-	case []interface{}:
+	case []any:
 		for _, val := range arv {
 			rval, err := w.filter(val)
 			// Don't add anything that causes an error or returns nil.
@@ -278,8 +278,8 @@ func (w *WildCardFilterSelection) GetConditionsFromKey() ([]string, error) {
 	return conditions, nil
 }
 
-func (w *WildCardFilterSelection) filter(val interface{}) (interface{}, error) {
-	_, ok := val.(map[string]interface{})
+func (w *WildCardFilterSelection) filter(val any) (any, error) {
+	_, ok := val.(map[string]any)
 	if !ok {
 		return val, MapTypeError
 	}
@@ -367,21 +367,21 @@ type DescentSelection struct {
 	RootNode
 }
 
-func isNil(i interface{}) bool {
+func isNil(i any) bool {
 	vi := reflect.ValueOf(i)
 	if !vi.IsValid() {
 		return true
 	}
 	switch vi.Kind() {
-	case reflect.Chan, reflect.Interface, reflect.Func, reflect.Slice, reflect.Map, reflect.Ptr:
+	case reflect.Chan, reflect.Interface, reflect.Func, reflect.Slice, reflect.Map, reflect.Pointer:
 		return vi.IsNil()
 	default:
 		return false
 	}
 }
-func flattenAppend(src []interface{}, values ...interface{}) []interface{} {
+func flattenAppend(src []any, values ...any) []any {
 	for _, value := range values {
-		av, ok := value.([]interface{})
+		av, ok := value.([]any)
 		if ok {
 			if len(av) > 0 {
 				src = flattenAppend(src, av...)
@@ -393,8 +393,8 @@ func flattenAppend(src []interface{}, values ...interface{}) []interface{} {
 	return src
 }
 
-func (d *DescentSelection) Apply(v interface{}) (interface{}, error) {
-	var ret []interface{}
+func (d *DescentSelection) Apply(v any) (any, error) {
+	var ret []any
 	rval, err := applyNext(d.NextNode, v)
 
 	// Ignore errors here.
@@ -404,7 +404,7 @@ func (d *DescentSelection) Apply(v interface{}) (interface{}, error) {
 	switch tv := v.(type) {
 	default:
 		return ret, nil
-	case map[string]interface{}:
+	case map[string]any:
 		var keys []string
 		for key := range tv {
 			keys = append(keys, key)
@@ -418,7 +418,7 @@ func (d *DescentSelection) Apply(v interface{}) (interface{}, error) {
 			}
 		}
 		return ret, nil
-	case []interface{}:
+	case []any:
 		for _, val := range tv {
 			rval, err := d.Apply(val)
 			// Don't add anything that causes an error or returns nil.
@@ -633,7 +633,7 @@ func parseSimpleDotPath(s string) Applicator {
 	return rt
 }
 
-func cmp_wildcard(obj1, obj2 interface{}, op string) (bool, error) {
+func cmp_wildcard(obj1, obj2 any, op string) (bool, error) {
 	var sobj1 string
 	switch v := obj1.(type) {
 	case string:
@@ -675,7 +675,7 @@ func cmp_wildcard(obj1, obj2 interface{}, op string) (bool, error) {
 	return false, SyntaxError
 }
 
-func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
+func cmp_any(obj1, obj2 any, op string) (bool, error) {
 	switch op {
 	case "<", "<=", "==", ">=", ">", "!=":
 	default:
