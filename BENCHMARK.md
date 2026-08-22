@@ -3,7 +3,7 @@
 ## Environment
 - **Platform**: darwin/arm64
 - **CPU**: Apple M4 Pro
-- **Go Version**: 1.25.4
+- **Go Version**: 1.25.4 (sections below), 1.27.0 (json/v2 migration section)
 
 ## Performance Comparison
 
@@ -65,6 +65,41 @@ BenchmarkApplyFilterLargeArray-14    	    21962	     55165 ns/op	   44497 B/op	 
 5. **Path caching in filters** - Cache parsed sub-paths in filter operations
 6. **Regex caching** - Cache compiled wildcard patterns
 7. **strings.Builder** - Reduced string allocations in normalize function
+
+## encoding/json v2 Migration (Go 1.27)
+
+The library core never calls `encoding/json` - it consumes already-decoded
+`map[string]interface{}` / `[]interface{}` values. So the `Parse`/`Apply`
+benchmarks above are **unaffected** by the v1 -> v2 switch. Re-running the
+unchanged suite back-to-back on the same binary produced a +2.18% geomean
+swing, which is the machine noise floor here; any apparent movement in those
+numbers from this migration is drift, not signal.
+
+What the switch does move is the decode step every caller performs first,
+covered by `BenchmarkUnmarshal` and `BenchmarkUnmarshalThenApply`
+(`benchtime=300ms`, `count=6`, benchstat):
+
+| Benchmark | encoding/json | encoding/json/v2 | Delta |
+|-----------|---------------|------------------|-------|
+| Unmarshal (time) | 3.911 µs | 1.936 µs | **-50.5%** |
+| Unmarshal (bytes) | 3.338 KiB | 2.939 KiB | -12.0% |
+| Unmarshal (allocs) | 86 | 68 | -20.9% |
+| UnmarshalThenApply (time) | 5.861 µs | 3.810 µs | **-35.0%** |
+| UnmarshalThenApply (bytes) | 4.177 KiB | 3.763 KiB | -9.9% |
+| UnmarshalThenApply (allocs) | 113 | 95 | -15.9% |
+
+Standalone comparison on a larger payload (100-element array, same shape as
+`BenchmarkApplyFilterLargeArray`): `Unmarshal` 49.46 µs -> 23.74 µs (-52%),
+47.77 KiB -> 42.26 KiB, 1115 -> 812 allocs.
+
+CLI indented output (`json.MarshalIndent` -> `json.Marshal` with
+`jsontext.WithIndent` + `json.Deterministic(true)`), which is byte-identical
+to the v1 output:
+
+| Payload | v1 | v2 | Delta |
+|---------|----|----|-------|
+| store doc | 2.360 µs / 1.431 KiB / 9 allocs | 2.024 µs / 985 B / 8 allocs | -14% time, -33% bytes |
+| 100-element array | 26.40 µs / 13.33 KiB / 6 allocs | 23.80 µs / 9.325 KiB / 5 allocs | -10% time, -30% bytes |
 
 ## Test Coverage
 

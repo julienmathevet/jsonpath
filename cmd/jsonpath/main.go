@@ -1,13 +1,21 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 
 	"github.com/julienmathevet/jsonpath"
+)
+
+// marshalOpts reproduces json v1's MarshalIndent output: three-space indent and
+// map keys sorted, which v2 only does when explicitly asked to be deterministic.
+var marshalOpts = json.JoinOptions(
+	jsontext.WithIndent("   "),
+	json.Deterministic(true),
 )
 
 func applyFilter(filter jsonpath.Applicator, data []byte) (interface{}, error) {
@@ -36,7 +44,7 @@ func main() {
 	}
 	if len(os.Args) == 2 {
 		// use stdinput
-		data, err := ioutil.ReadAll(os.Stdin)
+		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			log.Printf("Usage: %v '$['json']['path']['string']' a.json...\n", os.Args[0])
 			log.Printf("Got the following error Reading from STDIN  %v\n", err)
@@ -48,7 +56,7 @@ func main() {
 			log.Printf("Got the following error Applying filter  %v\n", err)
 			os.Exit(1)
 		}
-		data, err = json.MarshalIndent(d, "", "   ")
+		data, err = json.Marshal(d, marshalOpts)
 		if err != nil {
 			log.Printf("Usage: %v '$['json']['path']['string']' a.json...\n", os.Args[0])
 			log.Printf("Got the following error Printing out json %v\n", err)
@@ -57,7 +65,7 @@ func main() {
 		fmt.Println(string(data))
 	}
 	for _, filename := range os.Args[2:] {
-		data, err := ioutil.ReadFile(filename)
+		data, err := os.ReadFile(filename)
 		if err != nil {
 			log.Printf("Got the following error Reading from %v  %v\n", filename, err)
 			continue
@@ -67,7 +75,7 @@ func main() {
 			log.Printf("Got the following error Applying filter for %v  %v\n", filename, err)
 			continue
 		}
-		data, err = json.MarshalIndent(d, "", "   ")
+		data, err = json.Marshal(d, marshalOpts)
 		if err != nil {
 			log.Printf("Got the following error Trying to print result for file %v  %v\n", filename, err)
 			continue

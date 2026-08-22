@@ -1,7 +1,7 @@
 package jsonpath
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 )
 
@@ -22,6 +22,50 @@ func init() {
 	}`), &benchmarkData)
 	if err != nil {
 		panic(err)
+	}
+}
+
+// benchmarkJSON is the same document as benchmarkData, kept as raw bytes so the
+// decode step callers must perform is measured too. The library itself never
+// touches encoding/json - it consumes already-decoded values - so these two
+// benchmarks are what a json/v2 change actually moves.
+var benchmarkJSON = []byte(`{
+	"store": {
+		"book": [
+			{"category": "reference", "author": "Nigel Rees", "title": "Sayings of the Century", "price": 8.95},
+			{"category": "fiction", "author": "Evelyn Waugh", "title": "Sword of Honor", "price": 12.99},
+			{"category": "fiction", "author": "Herman Melville", "title": "Moby Dick", "isbn": "0-553-21311-3", "price": 8.99},
+			{"category": "fiction", "author": "J. R. R. Tolkien", "title": "The Lord of the Rings", "isbn": "0-395-19395-8", "price": 22.99}
+		],
+		"bicycle": {"color": "red", "price": 19.95}
+	},
+	"expensive": 10
+}`)
+
+func BenchmarkUnmarshal(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		var v map[string]interface{}
+		if err := json.Unmarshal(benchmarkJSON, &v); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkUnmarshalThenApply(b *testing.B) {
+	a, err := Parse("$.store.book[?(@.price < 10)]")
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		var v map[string]interface{}
+		if err := json.Unmarshal(benchmarkJSON, &v); err != nil {
+			b.Fatal(err)
+		}
+		if _, err := a.Apply(v); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
